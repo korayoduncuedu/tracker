@@ -5,22 +5,36 @@
 <meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
 <meta name='apple-mobile-web-app-capable' content='yes'>
 <meta name='apple-mobile-web-app-title' content='Tracker'>
+<meta name='apple-mobile-web-app-status-bar-style' content='default'>
+<meta name='theme-color' content='#f2f2f7' media='(prefers-color-scheme: light)'>
+<meta name='theme-color' content='#000000' media='(prefers-color-scheme: dark)'>
 <title>Tracker</title>
+<script>
+// Apply the saved theme before the page draws, so there is no white flash
+try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); } catch(e) {}
+</script>
 <style>
- body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:#f2f2f7;color:#111}
+ :root{--bg:#f2f2f7;--card:#fff;--text:#111;--muted:#666;--line:#eee;--border:#ccc;--input:#fff;--sec:#e5e5ea;--accent:#007aff;--danger:#c00;color-scheme:light}
+ @media (prefers-color-scheme: dark){
+  :root:not([data-theme='light']){--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;color-scheme:dark}
+ }
+ :root[data-theme='dark']{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;color-scheme:dark}
+ body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:var(--bg);color:var(--text)}
  h1{font-size:22px;margin:0}
  h2{font-size:17px;margin:0 0 8px}
- .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px}
- input,select,textarea,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc;width:100%;box-sizing:border-box;margin-top:6px}
- button{background:#007aff;color:#fff;border:none}
- button.sec{background:#e5e5ea;color:#111}
+ .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
+ input,select,textarea,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--border);width:100%;box-sizing:border-box;margin-top:6px;background:var(--input);color:var(--text)}
+ input::placeholder,textarea::placeholder{color:var(--muted)}
+ button{background:var(--accent);color:#fff;border:none}
+ button.sec{background:var(--sec);color:var(--text)}
  .row{display:flex;gap:8px}
  .row>*{flex:1;min-width:0}
  .big{font-size:26px;font-weight:700}
  .mid{font-size:18px;font-weight:600}
- .muted{color:#666;font-size:13px}
- .item{padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
- .day{padding:8px 0;border-bottom:1px solid #eee;font-size:14px}
+ .muted{color:var(--muted);font-size:13px}
+ .item{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+ .day{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+ .del{float:right;color:var(--danger);padding:0 4px}
  summary{font-size:17px;font-weight:600}
 </style>
 </head>
@@ -28,7 +42,7 @@
 
 <div class='row' style='align-items:center;margin-bottom:10px'>
  <button class='sec' style='flex:0 0 52px' onclick='go(-1)'>&lsaquo;</button>
- <div style='text-align:center' onclick='go(0)'><h1 id='dayTitle'>Today</h1><div class='muted' id='daySub'>v5</div></div>
+ <div style='text-align:center' onclick='go(0)'><h1 id='dayTitle'>Today</h1><div class='muted' id='daySub'>v6</div></div>
  <button class='sec' style='flex:0 0 52px' onclick='go(1)'>&rsaquo;</button>
 </div>
 
@@ -116,6 +130,11 @@
 
 <details class='card' id='settings'>
  <summary>Settings</summary>
+ <div class='muted' style='margin-top:8px'>Appearance</div>
+ <select id='sTheme' onchange='setTheme(this.value)'>
+  <option value='auto'>Auto (follow iPhone)</option><option value='light'>Light</option><option value='dark'>Dark</option>
+ </select>
+ <div class='muted' style='margin-top:8px'>Profile and API key</div>
  <input id='sKey' type='password' placeholder='API key (saved on this phone only)'>
  <select id='sSex'><option value='male'>Male</option><option value='female'>Female</option></select>
  <div class='row'>
@@ -132,6 +151,13 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const num = v => +v || 0;
 const R = v => Math.round(v);
+
+function getTheme(){ try { return localStorage.getItem('theme') || 'auto'; } catch(e) { return 'auto'; } }
+function setTheme(th){
+ try { localStorage.setItem('theme', th); } catch(e) {}
+ if(th === 'auto') document.documentElement.removeAttribute('data-theme');
+ else document.documentElement.setAttribute('data-theme', th);
+}
 
 // MET values by speed in km/h, from the Compendium of Physical Activities
 const WALK = [[3.2,2.8],[4.0,3.0],[4.8,3.5],[5.6,4.3],[6.4,5.0],[7.2,7.0],[8.0,8.3]];
@@ -318,7 +344,7 @@ function render(){
  const t = totals(d, bmr);
  const isToday = viewDate === todayStr();
  $('dayTitle').textContent = dayName(viewDate);
- $('daySub').textContent = isToday ? 'v5' : 'Tap to go back to today';
+ $('daySub').textContent = isToday ? 'v6' : 'Tap to go back to today';
  $('logTitle').textContent = 'Log - ' + dayName(viewDate);
  $('tIn').textContent = R(t.kin);
  $('tOut').textContent = R(t.out);
@@ -331,9 +357,10 @@ function render(){
  $('log').innerHTML = d.map((x, i) => {
   const kcal = x.kcal !== undefined ? ' - ' + R(num(x.kcal)) + ' kcal' : '';
   const macros = (x.type === 'food' && x.protein !== undefined) ? `<div class='muted'>P ${R(x.protein)} g, C ${R(x.carbs)} g, F ${R(x.fat)} g</div>` : '';
-  return `<div class='item'>${esc(x.label)}${kcal}<span onclick='del(${i})' style='float:right;color:#c00'>x</span>${macros}</div>`;
+  return `<div class='item'>${esc(x.label)}${kcal}<span class='del' onclick='del(${i})'>x</span>${macros}</div>`;
  }).join('') || `<div class='muted'>Nothing logged on this day.</div>`;
  renderWeek(bmr);
+ $('sTheme').value = getTheme();
  if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; }
  if(!p || !getKey()) $('settings').open = true;
 }
