@@ -17,19 +17,25 @@
  .row{display:flex;gap:8px}
  .row>*{flex:1;min-width:0}
  .big{font-size:26px;font-weight:700}
+ .mid{font-size:18px;font-weight:600}
  .muted{color:#666;font-size:13px}
  .item{padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
  summary{font-size:17px;font-weight:600}
 </style>
 </head>
 <body>
-<h1>Today <span class='muted'>v3</span></h1>
+<h1>Today <span class='muted'>v4</span></h1>
 
 <div class='card'>
  <div class='row'>
   <div><div class='muted'>In</div><div class='big' id='tIn'>0</div></div>
   <div><div class='muted'>Burned</div><div class='big' id='tOut'>0</div></div>
   <div><div class='muted'>Net</div><div class='big' id='tNet'>0</div></div>
+ </div>
+ <div class='row' style='margin-top:10px'>
+  <div><div class='muted'>Protein</div><div class='mid' id='tP'>0 g</div></div>
+  <div><div class='muted'>Carbs</div><div class='mid' id='tC'>0 g</div></div>
+  <div><div class='muted'>Fat</div><div class='mid' id='tF'>0 g</div></div>
  </div>
  <div class='muted' id='bmrLine'></div>
  <div class='muted' id='waterLine'></div>
@@ -100,6 +106,7 @@
 const MODEL = 'claude-sonnet-5-5';
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const num = v => +v || 0;
 
 // MET values by speed in km/h, from the Compendium of Physical Activities
 const WALK = [[3.2,2.8],[4.0,3.0],[4.8,3.5],[5.6,4.3],[6.4,5.0],[7.2,7.0],[8.0,8.3]];
@@ -160,9 +167,16 @@ async function ask(prompt){
 async function addFood(){
  const text = $('foodText').value.trim();
  if(!text) return;
- const res = await ask(`The user wrote what they ate, possibly in Turkish: ${text}. Estimate calories using typical Turkish portions unless quantities are given. Reply ONLY with JSON: an object with 'items' (array of objects with 'name' in English and 'kcal' as a number) and 'total_kcal' as a number.`);
+ const res = await ask(`The user wrote what they ate, possibly in Turkish: ${text}. Estimate calories and macronutrients using typical Turkish portions unless quantities are given. Reply ONLY with JSON: an object with 'items', an array of objects with 'name' in English plus 'kcal', 'protein_g', 'carbs_g' and 'fat_g', all as numbers.`);
+ const items = Array.isArray(res.items) ? res.items : [];
+ if(!items.length) throw new Error('Could not read that food, try rewording it');
+ const sum = k => items.reduce((a, i) => a + num(i[k]), 0);
  const d = load();
- d.push({ type: 'food', label: res.items.map(i => i.name + ' (' + i.kcal + ')').join(', '), kcal: +res.total_kcal });
+ d.push({
+  type: 'food',
+  label: items.map(i => i.name + ' (' + Math.round(num(i.kcal)) + ')').join(', '),
+  kcal: sum('kcal'), protein: sum('protein_g'), carbs: sum('carbs_g'), fat: sum('fat_g')
+ });
  save(d);
  $('foodText').value = '';
 }
@@ -204,7 +218,7 @@ async function addStrength(){
  if(!name || !reps || !sets) return;
  const res = await ask(`Estimate calories burned above resting for this strength exercise. Person: ${p.sex}, ${p.age} years, ${p.weight} kg. Exercise: ${name}, ${kg} kg dumbbell, ${reps} reps, ${sets} sets. Reply ONLY with JSON: an object with one key 'kcal' as a number.`);
  const d = load();
- d.push({ type: 'strength', label: `${name}: ${kg} kg x ${reps} reps x ${sets} sets`, kcal: +res.kcal, volume: kg * reps * sets });
+ d.push({ type: 'strength', label: `${name}: ${kg} kg x ${reps} reps x ${sets} sets`, kcal: num(res.kcal), volume: kg * reps * sets });
  save(d);
 }
 
@@ -227,16 +241,25 @@ function saveSettings(){
 function render(){
  const d = load(), p = getProfile();
  const bmr = p ? bmrOf(p) : 0;
- const kin = d.filter(x => x.type === 'food').reduce((a, x) => a + (+x.kcal || 0), 0);
- const act = d.filter(x => x.type === 'activity' || x.type === 'strength').reduce((a, x) => a + (+x.kcal || 0), 0);
- const water = d.filter(x => x.type === 'water').reduce((a, x) => a + x.ml, 0);
+ const foods = d.filter(x => x.type === 'food');
+ const total = k => foods.reduce((a, x) => a + num(x[k]), 0);
+ const kin = total('kcal');
+ const act = d.filter(x => x.type === 'activity' || x.type === 'strength').reduce((a, x) => a + num(x.kcal), 0);
+ const water = d.filter(x => x.type === 'water').reduce((a, x) => a + num(x.ml), 0);
  const out = bmr + act;
  $('tIn').textContent = Math.round(kin);
  $('tOut').textContent = Math.round(out);
  $('tNet').textContent = Math.round(kin - out);
+ $('tP').textContent = Math.round(total('protein')) + ' g';
+ $('tC').textContent = Math.round(total('carbs')) + ' g';
+ $('tF').textContent = Math.round(total('fat')) + ' g';
  $('bmrLine').textContent = p ? `Burned = BMR ${bmr} + activity ${Math.round(act)}` : 'Open Settings to enter your profile';
  $('waterLine').textContent = `Water today: ${water} ml`;
- $('log').innerHTML = d.map((x, i) => `<div class='item'>${esc(x.label)}${x.kcal !== undefined ? ' - ' + Math.round(x.kcal) + ' kcal' : ''}<span onclick='del(${i})' style='float:right;color:#c00'>x</span></div>`).join('') || `<div class='muted'>Nothing logged yet.</div>`;
+ $('log').innerHTML = d.map((x, i) => {
+  const kcal = x.kcal !== undefined ? ' - ' + Math.round(num(x.kcal)) + ' kcal' : '';
+  const macros = (x.type === 'food' && x.protein !== undefined) ? `<div class='muted'>P ${Math.round(x.protein)} g, C ${Math.round(x.carbs)} g, F ${Math.round(x.fat)} g</div>` : '';
+  return `<div class='item'>${esc(x.label)}${kcal}<span onclick='del(${i})' style='float:right;color:#c00'>x</span>${macros}</div>`;
+ }).join('') || `<div class='muted'>Nothing logged yet.</div>`;
  if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; }
  if(!p || !getKey()) $('settings').open = true;
 }
