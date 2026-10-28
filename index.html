@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
+<meta name='apple-mobile-web-app-capable' content='yes'>
+<meta name='apple-mobile-web-app-title' content='Tracker'>
+<title>Tracker</title>
+<style>
+ body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:#f2f2f7;color:#111}
+ h1{font-size:22px;margin:0 0 8px}
+ h2{font-size:17px;margin:0 0 8px}
+ .card{background:#fff;border-radius:14px;padding:14px;margin-bottom:12px}
+ input,select,textarea,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc;width:100%;box-sizing:border-box;margin-top:6px}
+ button{background:#007aff;color:#fff;border:none}
+ button.sec{background:#e5e5ea;color:#111}
+ .row{display:flex;gap:8px}
+ .row>*{flex:1;min-width:0}
+ .big{font-size:26px;font-weight:700}
+ .muted{color:#666;font-size:13px}
+ .item{padding:6px 0;border-bottom:1px solid #eee;font-size:14px}
+ summary{font-size:17px;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Today</h1>
+
+<div class='card'>
+ <div class='row'>
+  <div><div class='muted'>In</div><div class='big' id='tIn'>0</div></div>
+  <div><div class='muted'>Burned</div><div class='big' id='tOut'>0</div></div>
+  <div><div class='muted'>Net</div><div class='big' id='tNet'>0</div></div>
+ </div>
+ <div class='muted' id='bmrLine'></div>
+ <div class='muted' id='waterLine'></div>
+ <div class='muted' id='status'></div>
+</div>
+
+<div class='card'>
+ <h2>Food</h2>
+ <textarea id='foodText' rows='2' placeholder='e.g. 2 yumurta, 1 dilim ekmek, menemen'></textarea>
+ <button onclick='run(addFood)'>Add food</button>
+</div>
+
+<div class='card'>
+ <h2>Cardio / Activity</h2>
+ <select id='actType'>
+  <option>Drumming</option><option>Walking</option><option>Cycling</option>
+  <option>Running</option><option>Other</option>
+ </select>
+ <div class='row'>
+  <input id='actMin' type='number' placeholder='Minutes'>
+  <input id='actDist' placeholder='km or steps (optional)'>
+ </div>
+ <select id='actInt'><option>light</option><option selected>moderate</option><option>hard</option></select>
+ <button onclick='run(addActivity)'>Add activity</button>
+</div>
+
+<div class='card'>
+ <h2>Strength</h2>
+ <input id='exName' placeholder='Exercise, e.g. dumbbell curl'>
+ <div class='row'>
+  <input id='exKg' type='number' step='0.5' placeholder='kg'>
+  <input id='exReps' type='number' placeholder='reps'>
+  <input id='exSets' type='number' placeholder='sets'>
+ </div>
+ <button onclick='run(addStrength)'>Add exercise</button>
+</div>
+
+<div class='card'>
+ <h2>Water</h2>
+ <div class='row'>
+  <button class='sec' onclick='addWater(200)'>+200 ml</button>
+  <button class='sec' onclick='addWater(330)'>+330 ml</button>
+  <button class='sec' onclick='addWater(500)'>+500 ml</button>
+ </div>
+</div>
+
+<div class='card'>
+ <h2>Log</h2>
+ <div id='log'></div>
+ <button class='sec' onclick='clearToday()'>Clear today</button>
+</div>
+
+<details class='card' id='settings'>
+ <summary>Settings</summary>
+ <input id='sKey' type='password' placeholder='API key (saved on this phone only)'>
+ <select id='sSex'><option value='male'>Male</option><option value='female'>Female</option></select>
+ <div class='row'>
+  <input id='sAge' type='number' placeholder='Age'>
+  <input id='sHeight' type='number' placeholder='Height cm'>
+  <input id='sWeight' type='number' step='0.1' placeholder='Weight kg'>
+ </div>
+ <button onclick='saveSettings()'>Save</button>
+</details>
+
+<script>
+const MODEL = 'claude-sonnet-5-5';
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function getKey(){ return localStorage.getItem('apiKey') || ''; }
+function getProfile(){ try { return JSON.parse(localStorage.getItem('profile') || 'null'); } catch(e) { return null; } }
+function bmrOf(p){ return Math.round(10*p.weight + 6.25*p.height - 5*p.age + (p.sex === 'male' ? 5 : -161)); }
+function todayKey(){ return 'log-' + new Date().toLocaleDateString('en-CA'); }
+function load(){ try { return JSON.parse(localStorage.getItem(todayKey()) || '[]'); } catch(e) { return []; } }
+function save(d){ localStorage.setItem(todayKey(), JSON.stringify(d)); render(); }
+function needProfile(){ const p = getProfile(); if(!p) throw new Error('Fill in Settings first'); return p; }
+
+async function run(fn){
+ $('status').textContent = 'Working...';
+ try { await fn(); } catch(e) { alert('Error: ' + e.message); }
+ $('status').textContent = '';
+}
+
+async function ask(prompt){
+ const key = getKey();
+ if(!key) throw new Error('Add your API key in Settings first');
+ const r = await fetch('https://api.anthropic.com/v1/messages', {
+  method: 'POST',
+  headers: {
+   'content-type': 'application/json',
+   'x-api-key': key,
+   'anthropic-version': '2023-06-01',
+   'anthropic-dangerous-direct-browser-access': 'true'
+  },
+  body: JSON.stringify({ model: MODEL, max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+ });
+ const j = await r.json();
+ if(!j.content) throw new Error((j.error && j.error.message) || 'Unknown error');
+ const t = j.content[0].text;
+ return JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+}
+
+async function addFood(){
+ const text = $('foodText').value.trim();
+ if(!text) return;
+ const res = await ask(`The user wrote what they ate, possibly in Turkish: ${text}. Estimate calories using typical Turkish portions unless quantities are given. Reply ONLY with JSON: an object with 'items' (array of objects with 'name' in English and 'kcal' as a number) and 'total_kcal' as a number.`);
+ const d = load();
+ d.push({ type: 'food', label: res.items.map(i => i.name + ' (' + i.kcal + ')').join(', '), kcal: res.total_kcal });
+ save(d);
+ $('foodText').value = '';
+}
+
+async function addActivity(){
+ const p = needProfile();
+ const type = $('actType').value, min = +$('actMin').value, extra = $('actDist').value.trim(), inten = $('actInt').value;
+ if(!min) return;
+ const res = await ask(`Estimate calories burned using MET values. Person: ${p.sex}, ${p.age} years, ${p.height} cm, ${p.weight} kg. Activity: ${type}, ${min} minutes, intensity ${inten}, extra info: ${extra || 'none'}. Count only calories above resting (subtract 1 MET). Reply ONLY with JSON: an object with one key 'kcal' as a number.`);
+ const d = load();
+ d.push({ type: 'activity', label: `${type} ${min} min (${inten})${extra ? ', ' + extra : ''}`, kcal: res.kcal });
+ save(d);
+}
+
+async function addStrength(){
+ const p = needProfile();
+ const name = $('exName').value.trim(), kg = +$('exKg').value, reps = +$('exReps').value, sets = +$('exSets').value;
+ if(!name || !reps || !sets) return;
+ const res = await ask(`Estimate calories burned above resting for this strength exercise. Person: ${p.sex}, ${p.age} years, ${p.weight} kg. Exercise: ${name}, ${kg} kg dumbbell, ${reps} reps, ${sets} sets. Reply ONLY with JSON: an object with one key 'kcal' as a number.`);
+ const d = load();
+ d.push({ type: 'strength', label: `${name}: ${kg} kg x ${reps} reps x ${sets} sets`, kcal: res.kcal, volume: kg * reps * sets });
+ save(d);
+}
+
+function addWater(ml){ const d = load(); d.push({ type: 'water', label: 'Water ' + ml + ' ml', ml: ml }); save(d); }
+function del(i){ const d = load(); d.splice(i, 1); save(d); }
+function clearToday(){ if(confirm('Clear today?')){ localStorage.removeItem(todayKey()); render(); } }
+
+function saveSettings(){
+ const k = $('sKey').value.trim();
+ if(k) localStorage.setItem('apiKey', k);
+ const p = { sex: $('sSex').value, age: +$('sAge').value, height: +$('sHeight').value, weight: +$('sWeight').value };
+ if(!p.age || !p.height || !p.weight){ alert('Please fill in age, height and weight'); return; }
+ if(!getKey()){ alert('Please paste your API key'); return; }
+ localStorage.setItem('profile', JSON.stringify(p));
+ $('sKey').value = '';
+ $('settings').open = false;
+ render();
+}
+
+function render(){
+ const d = load(), p = getProfile();
+ const bmr = p ? bmrOf(p) : 0;
+ const kin = d.filter(x => x.type === 'food').reduce((a, x) => a + x.kcal, 0);
+ const act = d.filter(x => x.type === 'activity' || x.type === 'strength').reduce((a, x) => a + x.kcal, 0);
+ const water = d.filter(x => x.type === 'water').reduce((a, x) => a + x.ml, 0);
+ const out = bmr + act;
+ $('tIn').textContent = Math.round(kin);
+ $('tOut').textContent = Math.round(out);
+ $('tNet').textContent = Math.round(kin - out);
+ $('bmrLine').textContent = p ? `Burned = BMR ${bmr} + activity ${Math.round(act)}` : 'Open Settings to enter your profile';
+ $('waterLine').textContent = `Water today: ${water} ml`;
+ $('log').innerHTML = d.map((x, i) => `<div class='item'>${esc(x.label)}${x.kcal !== undefined ? ' - ' + Math.round(x.kcal) + ' kcal' : ''}<span onclick='del(${i})' style='float:right;color:#c00'>x</span></div>`).join('') || `<div class='muted'>Nothing logged yet.</div>`;
+ if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; }
+ if(!p || !getKey()) $('settings').open = true;
+}
+render();
+</script>
+</body>
+</html>
