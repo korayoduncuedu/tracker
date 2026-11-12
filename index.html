@@ -14,12 +14,12 @@
 try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dark') document.documentElement.setAttribute('data-theme', th); } catch(e) {}
 </script>
 <style>
- :root{--bg:#f2f2f7;--card:#fff;--text:#111;--muted:#666;--line:#eee;--border:#ccc;--input:#fff;--sec:#e5e5ea;--accent:#007aff;--danger:#c00;color-scheme:light}
+ :root{--bg:#f2f2f7;--card:#fff;--text:#111;--muted:#666;--line:#eee;--border:#ccc;--input:#fff;--sec:#e5e5ea;--accent:#007aff;--danger:#c00;--good:#0ca30c;--bad:#d03b3b;color-scheme:light}
  @media (prefers-color-scheme: dark){
-  :root:not([data-theme='light']){--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;color-scheme:dark}
+  :root:not([data-theme='light']){--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;--good:#0ca30c;--bad:#d03b3b;color-scheme:dark}
  }
- :root[data-theme='dark']{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;color-scheme:dark}
- body{font-family:-apple-system,sans-serif;margin:0;padding:16px;background:var(--bg);color:var(--text)}
+ :root[data-theme='dark']{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989f;--line:#2c2c2e;--border:#3a3a3c;--input:#2c2c2e;--sec:#3a3a3c;--accent:#0a84ff;--danger:#ff453a;--good:#0ca30c;--bad:#d03b3b;color-scheme:dark}
+ body{font-family:-apple-system,sans-serif;margin:0 auto;max-width:520px;padding:16px 16px calc(84px + env(safe-area-inset-bottom));background:var(--bg);color:var(--text)}
  h1{font-size:22px;margin:0}
  h2{font-size:17px;margin:0 0 8px}
  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
@@ -42,16 +42,28 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  summary{font-size:17px;font-weight:600}
  details.inner{margin-top:10px}
  details.inner summary{font-size:15px;font-weight:400;color:var(--accent)}
- .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:20}
+ .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:20}
  .sheet{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:10;overflow:auto}
  .sheet.open{display:flex}
  .sheet .card{width:100%;max-width:420px;margin:0}
  .photo{display:flex;align-items:center;gap:10px;margin-top:8px}
  .photo img{width:56px;height:56px;object-fit:cover;border-radius:10px}
+ button:disabled{opacity:.35}
+ .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:4px 0 env(safe-area-inset-bottom);z-index:5}
+ .tabs button{flex:1;width:auto;margin:0;padding:6px 0;background:none;color:var(--muted);font-size:11px;border-radius:0}
+ .tabs button.on{color:var(--accent)}
+ .tabs svg{display:block;margin:0 auto 2px;width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+ .seg{display:flex;background:var(--sec);border-radius:10px;padding:2px}
+ .seg button{flex:1;width:auto;margin:0;padding:7px 0;background:none;color:var(--text);font-size:13px;border-radius:8px}
+ .seg button.on{background:var(--card);font-weight:600}
+ .gtrend{font-size:14px;margin:2px 0 6px}
+ .graph{display:block;width:100%;height:auto;touch-action:pan-y;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+ .graph text{font-size:11px;fill:var(--muted)}
 </style>
 </head>
 <body>
 
+<div id='pgLog'>
 <div class='row' style='align-items:center;margin-bottom:10px'>
  <button class='sec' style='flex:0 0 52px' onclick='go(-1)'>&lsaquo;</button>
  <div style='text-align:center' onclick='go(0)'><h1 id='dayTitle'>Today</h1><div class='muted' id='daySub'></div></div>
@@ -138,6 +150,19 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 </div>
 
 <div class='card'>
+ <h2>Weight</h2>
+ <div class='row'>
+  <input id='wtKg' type='number' step='0.1' inputmode='decimal' placeholder='Weight in kg'>
+  <button style='flex:0 0 110px' onclick='run(logWeight)'>Save</button>
+ </div>
+ <div class='muted' id='wtInfo' style='margin-top:6px'></div>
+ <details class='inner'>
+  <summary>Earlier weigh-ins</summary>
+  <div id='wtList'></div>
+ </details>
+</div>
+
+<div class='card'>
  <h2 id='logTitle'>Log</h2>
  <div class='muted'>Tap an entry to change it.</div>
  <div id='log'></div>
@@ -162,28 +187,93 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  <div id='weekDays' style='margin-top:6px'></div>
 </div>
 
-<details class='card'>
- <summary>Weight</summary>
- <div class='muted' id='wtInfo' style='margin-top:8px'></div>
- <div id='wtChart'></div>
- <div class='row'>
-  <input id='wtKg' type='number' step='0.1' inputmode='decimal' placeholder='Weight in kg'>
-  <button style='flex:0 0 110px' onclick='run(logWeight)'>Save</button>
+</div>
+
+<div id='pgGraphs' style='display:none'>
+<h1 style='margin-bottom:10px'>Graphs</h1>
+<div class='seg'>
+ <button id='gp-week' onclick='setPeriod("week")'>Week</button>
+ <button id='gp-month' onclick='setPeriod("month")'>Month</button>
+ <button id='gp-year' onclick='setPeriod("year")'>Year</button>
+ <button id='gp-past' onclick='setPeriod("past")'>12 months</button>
+ <button id='gp-all' onclick='setPeriod("all")'>All</button>
+</div>
+<div class='row' style='align-items:center;margin:8px 0 12px'>
+ <button class='sec' id='gPrev' style='flex:0 0 52px;margin:0' onclick='stepPeriod(-1)'>&lsaquo;</button>
+ <div id='gLabel' style='text-align:center;font-weight:600'></div>
+ <button class='sec' id='gNext' style='flex:0 0 52px;margin:0' onclick='stepPeriod(1)'>&rsaquo;</button>
+</div>
+
+<div class='card'>
+ <h2>Calories</h2>
+ <select id='gCal' style='margin:0 0 10px' onchange='setPref("gCal", this.value); renderGraphs()'>
+  <option value='in'>Eaten</option><option value='out'>Burned</option><option value='net'>Net (eaten minus burned)</option><option value='protein'>Protein</option>
+ </select>
+ <div id='gcal'></div>
+</div>
+
+<div class='card'>
+ <h2>Weight</h2>
+ <div id='gwt'></div>
+</div>
+
+<div class='card'>
+ <h2>Cardio</h2>
+ <div class='row' style='margin-bottom:10px'>
+  <select id='gAct' style='margin:0' onchange='setPref("gAct", this.value); renderGraphs()'></select>
+  <select id='gActM' style='margin:0' onchange='setPref("gActM", this.value); renderGraphs()'>
+   <option value='min'>Minutes</option><option value='km'>Distance</option><option value='kcal'>Calories</option>
+  </select>
  </div>
- <div class='muted' id='wtDay'></div>
- <div id='wtList' style='margin-top:6px'></div>
-</details>
+ <div id='gact'></div>
+</div>
 
-<details class='card'>
- <summary>Strength progress</summary>
- <select id='prEx' onchange='renderStrength()'></select>
- <div class='muted' id='prInfo' style='margin-top:8px'></div>
- <div id='prList'></div>
-</details>
+<div class='card'>
+ <h2>Strength</h2>
+ <div class='row' style='margin-bottom:10px'>
+  <select id='prEx' style='margin:0' onchange='renderGraphs()'></select>
+  <select id='gExM' style='margin:0' onchange='setPref("gExM", this.value); renderGraphs()'>
+   <option value='top'>Heaviest</option><option value='volume'>Volume</option>
+  </select>
+ </div>
+ <div id='gex'></div>
+ <details class='inner'>
+  <summary>Sessions</summary>
+  <div id='prList'></div>
+ </details>
+</div>
+<div class='muted'>Green means the trend is going the right way, red means the wrong way. Slide a finger along a graph to read its values.</div>
+</div>
 
-<details class='card' id='settings'>
- <summary>Settings</summary>
- <div class='muted' style='margin-top:8px'>Appearance</div>
+<div id='pgSettings' style='display:none'>
+<h1 style='margin-bottom:10px'>Settings</h1>
+<div class='card' id='settings'>
+ <h2>You</h2>
+ <select id='sSex'><option value='male'>Male</option><option value='female'>Female</option></select>
+ <div class='row' style='margin-top:8px'>
+  <div><div class='muted'>Age</div><input id='sAge' type='number'></div>
+  <div><div class='muted'>Height cm</div><input id='sHeight' type='number'></div>
+  <div><div class='muted'>Weight kg</div><input id='sWeight' type='number' step='0.1' inputmode='decimal'></div>
+ </div>
+ <div class='muted' style='margin-top:8px'>Goal weight kg (optional)</div>
+ <input id='sGoal' type='number' step='0.1' inputmode='decimal'>
+ <div class='muted' style='margin-top:8px'>API key</div>
+ <input id='sKey' type='password'>
+ <button onclick='saveSettings()'>Save</button>
+</div>
+
+<div class='card'>
+ <h2>Your data</h2>
+ <label class='btn'>Import a file<input type='file' onchange='run(() => importFile(this))'></label>
+ <div class='muted'>A Tracker backup, or a log from another app saved as a Numbers, Excel or CSV file. Importing only adds what is missing and never deletes anything.</div>
+ <button class='sec' style='margin-top:12px' onclick='run(exportBackup)'>Save a backup file</button>
+ <button class='sec' onclick='run(exportCSV)'>Save as a spreadsheet</button>
+ <div class='muted'>Backups do not contain your API key.</div>
+</div>
+
+<div class='card'>
+ <h2>App</h2>
+ <div class='muted'>Appearance</div>
  <select id='sTheme' onchange='setTheme(this.value)'>
   <option value='auto'>Auto (follow iPhone)</option><option value='light'>Light</option><option value='dark'>Dark</option>
  </select>
@@ -193,21 +283,14 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
   <option value='claude-sonnet-5-5'>Sonnet 5.5 (smarter, pricier)</option>
  </select>
  <label class='check'><input id='sWeb' type='checkbox' onchange='setPref("web", this.checked ? "on" : "off")'> Web search for restaurant and packaged foods</label>
- <div class='muted' style='margin-top:8px'>Profile and API key</div>
- <input id='sKey' type='password' placeholder='API key (saved on this phone only)'>
- <select id='sSex'><option value='male'>Male</option><option value='female'>Female</option></select>
- <div class='row'>
-  <input id='sAge' type='number' placeholder='Age'>
-  <input id='sHeight' type='number' placeholder='Height cm'>
-  <input id='sWeight' type='number' step='0.1' inputmode='decimal' placeholder='Weight kg'>
- </div>
- <button onclick='saveSettings()'>Save</button>
- <div class='muted' style='margin-top:12px'>Backup</div>
- <button class='sec' onclick='run(exportBackup)'>Save a backup file</button>
- <label class='btn'>Restore from a backup file<input type='file' accept='.json,application/json' onchange='run(() => importBackup(this))'></label>
- <button class='sec' onclick='run(exportCSV)'>Save as a spreadsheet</button>
- <div class='muted'>Restoring adds what is missing and never deletes anything. Backups do not contain your API key.</div>
-</details>
+</div>
+</div>
+
+<div class='tabs'>
+ <button id='tabLog' onclick='showTab("log")'><svg viewBox='0 0 24 24'><path d='M5 6h14M5 12h14M5 18h9'/></svg>Log</button>
+ <button id='tabGraphs' onclick='showTab("graphs")'><svg viewBox='0 0 24 24'><path d='M3 17l6-6 4 4 8-9'/><path d='M15 6h6v6'/></svg>Graphs</button>
+ <button id='tabSettings' onclick='showTab("settings")'><svg viewBox='0 0 24 24'><path d='M4 7h8M18 7h2M4 17h2M12 17h8'/><circle cx='15' cy='7' r='2.5'/><circle cx='9' cy='17' r='2.5'/></svg>Settings</button>
+</div>
 
 <div id='sheet' class='sheet' onclick='if(event.target === this) closeEdit()'>
  <div class='card'>
@@ -255,7 +338,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div id='status' class='toast' style='display:none'>Working...</div>
 
 <script>
-const VERSION = 'v9';
+const VERSION = 'v10';
 const API = 'https://api.anthropic.com/v1/messages';
 const NL = String.fromCharCode(10);
 const $ = id => document.getElementById(id);
@@ -292,7 +375,7 @@ function dayName(s){ const t = todayStr(); if(s === t) return 'Today'; if(s === 
 let viewDate = todayStr();
 let lastToday = viewDate;
 function go(n){ viewDate = n === 0 ? todayStr() : shift(viewDate, n); if(viewDate > todayStr()) viewDate = todayStr(); render(); window.scrollTo(0, 0); }
-function goTo(s){ viewDate = s; render(); window.scrollTo(0, 0); }
+function goTo(s){ viewDate = s; if(curTab !== 'log') showTab('log'); render(); window.scrollTo(0, 0); }
 document.addEventListener('visibilitychange', () => {
  if(document.visibilityState !== 'visible') return;
  const t = todayStr();
@@ -313,7 +396,7 @@ function weightOn(s, p){
 }
 function bmrOf(p, s){ return Math.round(10*weightOn(s, p) + 6.25*p.height - 5*p.age + (p.sex === 'male' ? 5 : -161)); }
 // Calories above resting: BMR is already counted in the daily total, so it is subtracted here
-function burnAboveRest(met, p, minutes){ const h = minutes/60; return Math.max(0, met*weightOn(viewDate, p)*h - bmrOf(p, viewDate)/24*h); }
+function burnAboveRest(met, p, minutes, s){ if(!p) return 0; s = s || viewDate; const h = minutes/60; return Math.max(0, met*weightOn(s, p)*h - bmrOf(p, s)/24*h); }
 function setWeight(s, kg){
  const w = getWeights().filter(x => x.date !== s);
  if(kg) w.push({ date: s, kg: kg });
@@ -557,17 +640,24 @@ async function addActivity(){
   met = (table && speed) ? interp(table, speed) : BY_INTENSITY[type][inten];
   label = type + (table && speed ? ' at ' + speed.toFixed(1) + ' km/h' : ' (' + inten + ')');
  }
- addEntry({ type: 'activity', label: label + ', ' + min + ' min' + (note ? ', ' + note : '') + ', MET ' + met.toFixed(1), kcal: burnAboveRest(met, p, min) });
+ addEntry({ type: 'activity', act: type === 'Other' ? $('actOther').value.trim() : type, min: min, km: fmt(km), label: label + ', ' + min + ' min' + (note ? ', ' + note : '') + ', MET ' + met.toFixed(1), kcal: burnAboveRest(met, p, min) });
  $('actMin').value = ''; $('actDist').value = ''; $('actOther').value = '';
+}
+
+// Reads the activity, minutes and distance from an entry, including entries logged by older versions
+function activityOf(x){
+ if(x.act) return { act: String(x.act), min: num(x.min), km: num(x.km) };
+ const l = x.label || '', a = / at | [(]|,/.exec(l), m = /([0-9.]+) min/.exec(l), k = /([0-9.]+) km, MET/.exec(l);
+ return { act: (a ? l.slice(0, a.index) : l).trim() || 'Other', min: m ? +m[1] : 0, km: k ? +k[1] : 0 };
 }
 
 // ---------- Strength ----------
 // Burn is worked out in the app: about 4 s per rep plus 90 s rest per set, at 3.5 MET (resistance training)
-function strengthEntry(p, name, kg, reps, sets){
+function strengthEntry(p, name, kg, reps, sets, s){
  const minutes = sets * (reps * 4 + 90) / 60;
  return { type: 'strength', name: name, kg: kg, reps: reps, sets: sets,
   label: name + ': ' + kg + ' kg x ' + reps + ' reps x ' + sets + ' sets',
-  kcal: burnAboveRest(3.5, p, minutes), volume: kg * reps * sets };
+  kcal: burnAboveRest(3.5, p, minutes, s), volume: kg * reps * sets };
 }
 function addStrength(){
  const p = needProfile();
@@ -603,16 +693,9 @@ function renderStrength(){
  const by = strengthHistory(), keys = Object.keys(by).sort();
  $('exList').innerHTML = keys.map(k => `<option value='${esc(by[k].name)}'>`).join('');
  const sel = $('prEx'), key = keys.indexOf(sel.value) >= 0 ? sel.value : keys[0];
- sel.innerHTML = keys.map(k => `<option value='${esc(k)}'>${esc(by[k].name)}</option>`).join('');
- const g = key ? by[key] : null;
- if(!g){ $('prInfo').textContent = 'Log a strength exercise to see your progress here.'; $('prList').innerHTML = ''; return; }
- sel.value = key;
- const first = g.days[0], last = g.days[g.days.length - 1], diff = last.top - first.top;
- const best = Math.max.apply(null, g.days.map(x => x.top));
- $('prInfo').textContent = 'Heaviest: ' + best + ' kg. ' + (g.days.length > 1
-  ? 'Started at ' + first.top + ' kg, now ' + last.top + ' kg (' + (diff >= 0 ? '+' : '') + fmt(diff) + ' kg).'
-  : 'Log it on another day to see a trend.');
- $('prList').innerHTML = g.days.slice(-8).reverse().map(x =>
+ sel.innerHTML = keys.map(k => `<option value='${esc(k)}'>${esc(by[k].name)}</option>`).join('') || `<option value=''>No exercises</option>`;
+ if(key) sel.value = key;
+ $('prList').innerHTML = !key ? `<div class='muted'>Log a strength exercise to see it here.</div>` : by[key].days.slice(-8).reverse().map(x =>
   `<div class='day' onclick="goTo('${x.date}')">${dayName(x.date)}<div class='muted'>${esc(x.sets.join(', '))}. Volume ${R(x.volume)} kg</div></div>`).join('');
 }
 
@@ -681,25 +764,12 @@ function logWeight(){
  render();
 }
 function delWeight(s){ setWeight(s, 0); render(); }
-function weightChart(w){
- if(w.length < 2) return '';
- const dn = s => { const a = s.split('-').map(Number); return Date.UTC(a[0], a[1] - 1, a[2]) / 864e5; };
- const x0 = dn(w[0].date), x1 = dn(w[w.length - 1].date), ks = w.map(x => x.kg);
- const lo = Math.min.apply(null, ks), hi = Math.max.apply(null, ks);
- const pts = w.map(x => (10 + 280 * (dn(x.date) - x0) / ((x1 - x0) || 1)).toFixed(1) + ',' + (70 - 60 * (x.kg - lo) / ((hi - lo) || 1)).toFixed(1)).join(' ');
- return `<svg viewBox='0 0 300 80' style='width:100%;height:80px;margin-top:6px'><polyline points='${pts}' fill='none' stroke='var(--accent)' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>`;
-}
+const kg2 = v => +num(v).toFixed(2);
 function renderWeight(){
- const w = getWeights().filter(x => x && isDate(x.date) && num(x.kg));
- $('wtDay').textContent = 'Saves for: ' + dayName(viewDate);
- if(!w.length){ $('wtInfo').textContent = 'No weight saved yet.'; $('wtChart').innerHTML = ''; $('wtList').innerHTML = ''; return; }
- const first = w[0], last = w[w.length - 1], diff = last.kg - first.kg;
- $('wtInfo').textContent = 'Latest: ' + fmt(last.kg) + ' kg. ' + (w.length > 1
-  ? (diff <= 0 ? 'Down ' : 'Up ') + fmt(Math.abs(diff)) + ' kg since ' + prettyDate(first.date) + '.'
-  : 'Save it again on another day to see a trend.');
- $('wtChart').innerHTML = weightChart(w);
- $('wtList').innerHTML = w.slice(-6).reverse().map(x =>
-  `<div class='day'><span class='del' onclick="delWeight('${x.date}')">x</span>${dayName(x.date)}: ${fmt(x.kg)} kg</div>`).join('');
+ const w = getWeights().filter(x => x && isDate(x.date) && num(x.kg)), last = w[w.length - 1];
+ $('wtInfo').textContent = 'Saves for: ' + dayName(viewDate) + '. ' + (last ? 'Latest: ' + kg2(last.kg) + ' kg on ' + prettyDate(last.date) + '.' : 'No weight saved yet.');
+ $('wtList').innerHTML = w.slice(-10).reverse().map(x =>
+  `<div class='day'><span class='del' onclick="delWeight('${x.date}')">x</span>${dayName(x.date)}: ${kg2(x.kg)} kg</div>`).join('') || `<div class='muted'>None yet.</div>`;
 }
 
 // ---------- Backup, restore and spreadsheet ----------
@@ -729,15 +799,9 @@ function exportCSV(){
  getWeights().forEach(w => rows.push([w.date, 'weight', fmt(num(w.kg)) + ' kg', '', '', '', '', '']));
  return shareFile('tracker-log-' + todayStr() + '.csv', String.fromCharCode(0xFEFF) + rows.map(r => r.map(q).join(',')).join(String.fromCharCode(13, 10)), 'text/csv');
 }
-// Restoring only adds: entries already on this phone are kept as they are
-async function importBackup(input){
- const f = input.files && input.files[0];
- if(!f) return;
- const text = await f.text();
- input.value = '';
- let b = null;
- try { b = JSON.parse(text); } catch(e) {}
- if(!b || b.app !== 'tracker' || !b.days || typeof b.days !== 'object') throw new Error('That file is not a Tracker backup');
+// Restoring a backup only adds: entries already on this phone are kept as they are
+function restoreBackup(b){
+ if(!b.days || typeof b.days !== 'object') throw new Error('That backup file is damaged.');
  const sig = x => x.id || JSON.stringify(x);
  let added = 0;
  Object.keys(b.days).forEach(s => {
@@ -759,7 +823,7 @@ async function importBackup(input){
  if(b.learned && typeof b.learned === 'object') setJSON('learned', Object.assign({}, b.learned, getJSON('learned', {})));
  const bp = b.profile;
  if(!getProfile() && bp && num(bp.age) && num(bp.height) && num(bp.weight)){
-  setJSON('profile', { sex: bp.sex === 'female' ? 'female' : 'male', age: num(bp.age), height: num(bp.height), weight: num(bp.weight) });
+  setJSON('profile', { sex: bp.sex === 'female' ? 'female' : 'male', age: num(bp.age), height: num(bp.height), weight: num(bp.weight), goal: num(bp.goal) });
  }
  const sorted = getWeights();
  if(sorted.length) setWeight(sorted[sorted.length - 1].date, sorted[sorted.length - 1].kg);
@@ -767,19 +831,623 @@ async function importBackup(input){
  alert(added ? 'Restored ' + added + ' entries.' : 'Nothing new in that backup. Everything was already here.');
 }
 
+// ---------- Importing files ----------
+const u16 = (b, o) => b[o] | b[o + 1] << 8;
+const u32 = (b, o) => (b[o] | b[o + 1] << 8 | b[o + 2] << 16 | b[o + 3] << 24) >>> 0;
+const utf8 = b => new TextDecoder('utf-8').decode(b);
+
+// Numbers and Excel files are zips. This lists what is inside one.
+function unzip(b){
+ const files = {};
+ let e = b.length - 22;
+ while(e >= 0 && u32(b, e) !== 0x06054b50) e--;
+ if(e < 0) throw new Error('not a zip');
+ let p = u32(b, e + 16);
+ for(let n = u16(b, e + 10); n > 0 && u32(b, p) === 0x02014b50; n--){
+  const nameLen = u16(b, p + 28), local = u32(b, p + 42);
+  const start = local + 30 + u16(b, local + 26) + u16(b, local + 28);
+  files[utf8(b.subarray(p + 46, p + 46 + nameLen))] = { method: u16(b, p + 10), data: b.subarray(start, start + u32(b, p + 20)) };
+  p += 46 + nameLen + u16(b, p + 30) + u16(b, p + 32);
+ }
+ return files;
+}
+async function unzipped(f){
+ if(f.method === 0) return f.data;
+ const s = new Blob([f.data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+ return new Uint8Array(await new Response(s).arrayBuffer());
+}
+
+// --- Numbers files: snappy-compressed protobuf records ---
+function snappy(b){
+ let i = 0, len = 0, mul = 1, c;
+ do { c = b[i++]; len += (c & 127) * mul; mul *= 128; } while(c & 128);
+ const out = new Uint8Array(len);
+ let o = 0;
+ while(i < b.length){
+  const tag = b[i++], t = tag & 3;
+  let n, off;
+  if(t === 0){
+   n = tag >> 2;
+   if(n >= 60){ const k = n - 59; n = 0; for(let j = 0; j < k; j++) n += b[i + j] * Math.pow(256, j); i += k; }
+   n++;
+   out.set(b.subarray(i, i + n), o); i += n; o += n;
+  } else {
+   if(t === 1){ n = ((tag >> 2) & 7) + 4; off = (tag >> 5) << 8 | b[i++]; }
+   else if(t === 2){ n = (tag >> 2) + 1; off = u16(b, i); i += 2; }
+   else { n = (tag >> 2) + 1; off = u32(b, i); i += 4; }
+   for(let j = 0; j < n; j++, o++) out[o] = out[o - off];
+  }
+ }
+ return out;
+}
+function iwaBytes(b){
+ const parts = [];
+ let total = 0;
+ for(let i = 0; i + 4 <= b.length;){
+  const n = b[i + 1] | b[i + 2] << 8 | b[i + 3] << 16;
+  const part = snappy(b.subarray(i + 4, i + 4 + n));
+  parts.push(part); total += part.length; i += 4 + n;
+ }
+ const out = new Uint8Array(total);
+ let o = 0;
+ parts.forEach(x => { out.set(x, o); o += x.length; });
+ return out;
+}
+// Reads one protobuf message into { fieldNumber: [values] }
+function pb(b){
+ const m = {};
+ let i = 0;
+ const varint = () => { let v = 0, mul = 1, c; do { c = b[i++]; v += (c & 127) * mul; mul *= 128; } while(c & 128); return v; };
+ while(i < b.length){
+  const key = varint(), field = Math.floor(key / 8), wire = key % 8;
+  let v;
+  if(wire === 0) v = varint();
+  else if(wire === 1){ v = b.subarray(i, i + 8); i += 8; }
+  else if(wire === 2){ const n = varint(); v = b.subarray(i, i + n); i += n; }
+  else if(wire === 5){ v = b.subarray(i, i + 4); i += 4; }
+  else break;
+  (m[field] || (m[field] = [])).push(v);
+ }
+ return m;
+}
+function iwaObjects(b, objs){
+ let i = 0;
+ while(i < b.length){
+  let n = 0, mul = 1, c;
+  do { c = b[i++]; n += (c & 127) * mul; mul *= 128; } while(c & 128);
+  const info = pb(b.subarray(i, i + n));
+  i += n;
+  (info[2] || []).forEach((raw, k) => {
+   const mi = pb(raw), len = mi[3] ? mi[3][0] : 0;
+   if(k === 0) objs[info[1][0]] = { type: mi[1][0], data: b.subarray(i, i + len) };
+   i += len;
+  });
+ }
+}
+function numbersCell(b, o, strings){
+ const type = b[o + 1], flags = u32(b, o + 8), view = new DataView(b.buffer, b.byteOffset);
+ let p = o + 12, dec = null, dbl = null, secs = null, str = '';
+ if(flags & 1){
+  const exp = (((b[p + 15] & 127) << 7) | (b[p + 14] >> 1)) - 0x1820;
+  let m = b[p + 14] & 1;
+  for(let i = 13; i >= 0; i--) m = m * 256 + b[p + i];
+  dec = +((b[p + 15] & 128 ? -1 : 1) * m * Math.pow(10, exp)).toPrecision(15);
+  p += 16;
+ }
+ if(flags & 2){ dbl = view.getFloat64(p, true); p += 8; }
+ if(flags & 4){ secs = view.getFloat64(p, true); p += 8; }
+ if(flags & 8) str = strings[u32(b, p)] || '';
+ if(type === 5 && secs != null) return new Date(Date.UTC(2001, 0, 1) + secs * 1000).toISOString().slice(0, 19).replace('T', ' ');
+ if(type === 3) return str;
+ if(dec != null) return String(dec);
+ if(dbl != null) return String(dbl);
+ return str;
+}
+// Returns the biggest table in a Numbers file as rows of text cells
+async function numbersRows(files){
+ const objs = {};
+ for(const name of Object.keys(files)){
+  if(name.slice(-4) === '.iwa') iwaObjects(iwaBytes(await unzipped(files[name])), objs);
+ }
+ const ref = v => pb(v)[1][0];
+ let best = [], bestCells = 0;
+ Object.keys(objs).forEach(id => {
+  if(objs[id].type !== 6001) return;
+  const store = pb(pb(objs[id].data)[4][0]), strings = {}, rows = [];
+  let cells = 0;
+  (pb(objs[ref(store[4][0])].data)[3] || []).forEach(e => { const m = pb(e); if(m[3]) strings[m[1][0]] = utf8(m[3][0]); });
+  const tiles = pb(store[3][0]), size = tiles[2] ? tiles[2][0] : 256;
+  (tiles[1] || []).forEach(t => {
+   const tm = pb(t), tile = pb(objs[ref(tm[2][0])].data);
+   (tile[5] || []).forEach(raw => {
+    const ri = pb(raw);
+    if(!ri[6] || !ri[7]) return;
+    const buf = ri[6][0], offs = ri[7][0], wide = ri[8] && ri[8][0], row = [];
+    for(let c = 0; c * 2 + 1 < offs.length; c++){
+     const o = u16(offs, c * 2);
+     if(o === 0xFFFF) continue;
+     while(row.length < c) row.push('');
+     row.push(numbersCell(buf, wide ? o * 4 : o, strings));
+     cells++;
+    }
+    rows[tm[1][0] * size + ri[1][0]] = row;
+   });
+  });
+  if(cells > bestCells){ bestCells = cells; best = rows; }
+ });
+ return Array.from(best, r => r || []).filter(r => r.some(c => c));
+}
+
+// --- Excel files ---
+async function xlsxRows(files){
+ const xml = async n => files[n] ? utf8(await unzipped(files[n])) : '';
+ const plain = s => s.replace(/&(#x?[0-9a-fA-F]+|[a-z]+);/g, (m, e) => e[0] === '#' ? String.fromCodePoint(e[1] === 'x' ? parseInt(e.slice(2), 16) : +e.slice(1)) : ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[e] || m));
+ const texts = s => plain((s.match(/<t(?: [^>]*)?>[^<]*/g) || []).map(t => t.slice(t.indexOf('>') + 1)).join(''));
+ const shared = ((await xml('xl/sharedStrings.xml')).match(/<si[ >].*?<[/]si>/gs) || []).map(texts);
+ const sheet = Object.keys(files).filter(n => /^xl[/]worksheets[/]sheet[0-9]+[.]xml$/.test(n)).sort((a, b) => a.length - b.length || (a < b ? -1 : 1))[0];
+ const rows = [];
+ ((await xml(sheet)).replace(/<row[^>]*[/]>/g, '').match(/<row[ >].*?<[/]row>/gs) || []).forEach(r => {
+  const row = [];
+  (r.match(/<c [^>]*?(?:[/]>|>.*?<[/]c>)/gs) || []).forEach(c => {
+   const at = /r="([A-Z]+)[0-9]+"/.exec(c), t = (/ t="([a-zA-Z]+)"/.exec(c) || [])[1], v = /<v>([^<]*)<[/]v>/.exec(c);
+   let col = row.length;
+   if(at){ col = 0; for(const ch of at[1]) col = col * 26 + ch.charCodeAt(0) - 64; col--; }
+   while(row.length < col) row.push('');
+   row[col] = t === 's' ? (shared[v ? +v[1] : -1] || '') : t === 'inlineStr' ? texts(c) : v ? plain(v[1]) : '';
+  });
+  rows.push(row);
+ });
+ return rows.filter(r => r.some(c => c));
+}
+
+// --- CSV and other text files ---
+function csvRows(text){
+ const TAB = String.fromCharCode(9), CR = String.fromCharCode(13);
+ if(text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+ const top = text.split(NL).slice(0, 5).join(NL);
+ const delim = [';', TAB, '|', ','].map(d => [top.split(d).length, d]).sort((a, b) => b[0] - a[0])[0][1];
+ const rows = [];
+ let row = [], cell = '', quoted = false;
+ for(let i = 0; i < text.length; i++){
+  const c = text[i];
+  if(quoted){
+   if(c !== '"') cell += c;
+   else if(text[i + 1] === '"'){ cell += '"'; i++; }
+   else quoted = false;
+  }
+  else if(c === '"') quoted = true;
+  else if(c === delim){ row.push(cell); cell = ''; }
+  else if(c === NL || c === CR){
+   if(c === CR && text[i + 1] === NL) i++;
+   row.push(cell); rows.push(row); row = []; cell = '';
+  }
+  else cell += c;
+ }
+ if(cell || row.length){ row.push(cell); rows.push(row); }
+ return rows.filter(r => r.some(c => c.trim()));
+}
+
+// Turns a date written in any common way into YYYY-MM-DD, or '' if it is not a date
+function parseDay(s, order, serial){
+ s = String(s == null ? '' : s).trim();
+ let y = 0, m = 0, d = 0, a;
+ if((a = /^([0-9]{4})[-/.]([0-9]{1,2})[-/.]([0-9]{1,2})(?![0-9])/.exec(s))){ y = +a[1]; m = +a[2]; d = +a[3]; }
+ else if((a = /^([0-9]{1,2})[-/.]([0-9]{1,2})[-/.]([0-9]{2,4})(?![0-9])/.exec(s))){
+  y = +a[3] < 100 ? +a[3] + 2000 : +a[3];
+  let monthFirst = order === 'MDY';
+  if(+a[1] > 12) monthFirst = false;
+  if(+a[2] > 12) monthFirst = true;
+  m = monthFirst ? +a[1] : +a[2];
+  d = monthFirst ? +a[2] : +a[1];
+ }
+ else if(serial && /^[0-9]+([.][0-9]+)?$/.test(s) && +s > 20000 && +s < 80000){
+  const t = new Date(Date.UTC(1899, 11, 30) + Math.floor(+s) * 864e5);
+  y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
+ }
+ else if(/[a-zA-Z]/.test(s) && /[0-9]{4}/.test(s)){
+  const t = new Date(s);
+  if(!isNaN(t)){ y = t.getFullYear(); m = t.getMonth() + 1; d = t.getDate(); }
+ }
+ if(y < 1990 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return '';
+ return y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+}
+// Reads a number from a cell, with either a dot or a comma as the decimal mark
+function cellNum(s){
+ const a = /-?[0-9][0-9.,]*/.exec(String(s == null ? '' : s));
+ if(!a) return NaN;
+ let t = a[0];
+ const c = t.lastIndexOf(','), p = t.lastIndexOf('.');
+ if(c >= 0 && p >= 0) t = c > p ? t.split('.').join('').replace(',', '.') : t.split(',').join('');
+ else if(c >= 0) t = t.split(',').length === 2 && t.length - c - 1 !== 3 ? t.replace(',', '.') : t.split(',').join('');
+ return parseFloat(t);
+}
+
+// A plain weight log (a date and a weight on each row) is recognised without asking Claude
+function weightMap(rows, serial, name){
+ const width = Math.max.apply(null, rows.map(r => r.length)), isDay = (r, c) => parseDay(r[c], '', serial);
+ let dc = -1, most = 0;
+ for(let c = 0; c < width; c++){
+  const k = rows.filter(r => isDay(r, c)).length;
+  if(k > most){ most = k; dc = c; }
+ }
+ if(dc < 0) return null;
+ const dated = rows.filter(r => isDay(r, dc)), cols = [];
+ for(let c = 0; c < width; c++){
+  if(c !== dc && dated.filter(r => cellNum(r[c]) > 0).length >= dated.length * 0.8) cols.push(c);
+ }
+ if(cols.length !== 1 || dated.some(r => cellNum(r[cols[0]]) > 700)) return null;
+ const words = (name + ' ' + rows.filter(r => !isDay(r, dc)).slice(0, 12).map(r => r.join(' ')).join(' ')).toLowerCase();
+ if(!/(^| )(kg|kgs|lb|lbs|pounds)( |$)|weight|kilo|a[ğg][ıi]rl[ıi]k/.test(words)) return null;
+ return { date_col: dc, date_order: 'DMY', weight_col: cols[0], weight_unit: /(^| )(lb|lbs|pounds)( |$)/.test(words) ? 'lb' : 'kg' };
+}
+
+// Any other log: Claude sees the first rows and says which column is what. The app then reads every row itself.
+const IMPORT_SHAPE = '{"date_col":0,"date_order":"DMY","weight_col":null,"weight_unit":"kg","food_name_col":null,"food_kcal_col":null,"protein_col":null,"carbs_col":null,"fat_col":null,"activity_name_col":null,"activity_min_col":null,"activity_km_col":null,"distance_unit":"km","activity_kcal_col":null,"exercise_name_col":null,"exercise_kg_col":null,"exercise_reps_col":null,"exercise_sets_col":null,"water_col":null,"water_unit":"ml"}';
+function askMapping(rows, name){
+ const sample = rows.slice(0, 25).map((r, i) => i + ': ' + JSON.stringify(r.map(c => String(c == null ? '' : c).slice(0, 40))));
+ return ask([
+  'Below is the start of a log file exported from another health or fitness app. A program will import it, and needs to know which column holds what.',
+  'File name: ' + name + '. The file has ' + rows.length + ' rows. Rows and columns are numbered from 0.',
+  '',
+  sample.join(NL),
+  '',
+  'One row is one entry. Name a column only when you are sure what it holds, and use null for everything the file does not have. Body weight goes in weight_col, and the weight lifted in an exercise goes in exercise_kg_col.',
+  'date_order is YMD, DMY or MDY. weight_unit is kg or lb and also applies to exercise weights. distance_unit is km or mi. water_unit is ml or l.',
+  'End your reply with one JSON object and nothing after it, in exactly this shape:',
+  IMPORT_SHAPE
+ ].join(NL));
+}
+
+// Reads every row of a log with the column map, into entries the app understands
+function readLog(rows, map, serial){
+ const col = k => Number.isInteger(map[k]) && map[k] >= 0 ? map[k] : -1;
+ const cell = (r, k) => col(k) < 0 || r[col(k)] == null ? '' : String(r[col(k)]).trim();
+ const n = (r, k) => { const v = cellNum(cell(r, k)); return v > 0 ? v : 0; };
+ const lb = map.weight_unit === 'lb' ? 0.45359237 : 1, mile = map.distance_unit === 'mi' ? 1.609344 : 1, litre = map.water_unit === 'l' ? 1000 : 1;
+ const p = getProfile(), today = todayStr(), seen = {};
+ const out = { weights: {}, days: {}, n: { weight: 0, food: 0, activity: 0, strength: 0, water: 0 }, first: '', last: '' };
+ const add = (day, e) => {
+  let id = 'imp-' + day + '-' + e.type + '-' + norm(e.label) + '-' + R(num(e.kcal) + num(e.ml));
+  seen[id] = (seen[id] || 0) + 1;
+  if(seen[id] > 1) id += '-' + seen[id];
+  (out.days[day] || (out.days[day] = [])).push(Object.assign(e, { id: id, imported: true }));
+  out.n[e.type]++;
+ };
+ rows.forEach(r => {
+  const day = parseDay(cell(r, 'date_col'), map.date_order, serial);
+  if(!day || day > today) return;
+  const before = JSON.stringify(out.n);
+  const kg = Math.round(n(r, 'weight_col') * lb * 100) / 100;
+  if(kg >= 20 && kg <= 400){ if(!out.weights[day]) out.n.weight++; out.weights[day] = kg; }
+  const kcal = n(r, 'food_kcal_col');
+  if(kcal) add(day, { type: 'food', label: cell(r, 'food_name_col') || 'Imported food', kcal: kcal, protein: n(r, 'protein_col'), carbs: n(r, 'carbs_col'), fat: n(r, 'fat_col') });
+  const min = n(r, 'activity_min_col'), km = fmt(n(r, 'activity_km_col') * mile), burned = n(r, 'activity_kcal_col');
+  if(min || km || burned){
+   const name = cell(r, 'activity_name_col') || 'Activity';
+   add(day, { type: 'activity', act: name, min: min, km: km, label: name + (min ? ', ' + R(min) + ' min' : '') + (km ? ', ' + km + ' km' : ''), kcal: burned || burnAboveRest(4, p, min, day) });
+  }
+  const ex = cell(r, 'exercise_name_col'), reps = n(r, 'exercise_reps_col');
+  if(ex && reps) add(day, strengthEntry(p, ex, fmt(n(r, 'exercise_kg_col') * lb), reps, n(r, 'exercise_sets_col') || 1, day));
+  const ml = R(n(r, 'water_col') * litre);
+  if(ml) add(day, { type: 'water', label: 'Water ' + ml + ' ml', ml: ml });
+  if(JSON.stringify(out.n) !== before || out.weights[day]){
+   if(!out.first || day < out.first) out.first = day;
+   if(day > out.last) out.last = day;
+  }
+ });
+ return out;
+}
+// Adds what was read to this phone. Entries already here are skipped, so importing twice is safe.
+function mergeLog(got){
+ let added = 0;
+ Object.keys(got.days).forEach(s => {
+  const mine = load(s), have = {};
+  mine.forEach(x => { have[x.id] = true; });
+  got.days[s].forEach(e => { if(!have[e.id]){ mine.push(e); added++; } });
+  setJSON(keyFor(s), mine);
+ });
+ const w = getWeights(), has = {};
+ w.forEach(x => { has[x.date] = true; });
+ Object.keys(got.weights).forEach(s => { if(!has[s]){ w.push({ date: s, kg: got.weights[s] }); added++; } });
+ setJSON('weights', w);
+ const sorted = getWeights();
+ if(sorted.length) setWeight(sorted[sorted.length - 1].date, sorted[sorted.length - 1].kg);
+ return added;
+}
+
+async function importFile(input){
+ const f = input.files && input.files[0];
+ if(!f) return;
+ input.value = '';
+ const b = new Uint8Array(await f.arrayBuffer());
+ let rows = null, serial = false;
+ if(b[0] === 0x50 && b[1] === 0x4b){
+  try {
+   const files = unzip(b);
+   if(Object.keys(files).some(n => n.slice(-4) === '.iwa')) rows = await numbersRows(files);
+   else if(files['xl/workbook.xml']){ rows = await xlsxRows(files); serial = true; }
+  } catch(e) { rows = null; }
+  if(!rows) throw new Error('Could not read that file. Open it in Numbers or Excel, export it as CSV, and import the CSV file.');
+ } else {
+  const text = utf8(b);
+  let j = null;
+  try { j = JSON.parse(text); } catch(e) {}
+  if(j && j.app === 'tracker') return restoreBackup(j);
+  rows = csvRows(text);
+ }
+ if(!rows.some(r => r.some(c => parseDay(c, '', serial)))) throw new Error('Could not find any dates in that file, so there is nothing to import.');
+ const map = weightMap(rows, serial, f.name || '') || await askMapping(rows, f.name || '');
+ const got = readLog(rows, map, serial);
+ const found = [['weight', 'weigh-ins'], ['food', 'foods'], ['activity', 'activities'], ['strength', 'exercises'], ['water', 'water entries']]
+  .filter(x => got.n[x[0]]).map(x => got.n[x[0]] + ' ' + x[1]);
+ if(!found.length) throw new Error('Could not find anything to import in that file.');
+ if(!confirm('Found ' + found.join(', ') + ', from ' + fullDate(got.first) + ' to ' + fullDate(got.last) + '. Add them to this phone?')) return;
+ const added = mergeLog(got);
+ render();
+ alert(added ? 'Added ' + added + ' entries.' : 'Nothing new. Everything in that file was already here.');
+}
+
+// ---------- Tabs ----------
+let curTab = 'log';
+function showTab(t){
+ curTab = t;
+ [['log', 'pgLog', 'tabLog'], ['graphs', 'pgGraphs', 'tabGraphs'], ['settings', 'pgSettings', 'tabSettings']].forEach(x => {
+  show(x[1], x[0] === t);
+  $(x[2]).className = x[0] === t ? 'on' : '';
+ });
+ window.scrollTo(0, 0);
+ if(t === 'graphs') renderGraphs();
+}
+
+// ---------- Graphs ----------
+let gOffset = 0;
+const GRAPHS = {};
+const PERIODS = ['week', 'month', 'year', 'past', 'all'];
+// dir: 1 means going up is good, 0 means it follows the weight goal
+const CAL = {
+ in: { unit: 'kcal', dec: 0, eps: 25, dir: 0, v: st => st.kin },
+ out: { unit: 'kcal', dec: 0, eps: 25, dir: 1, v: st => st.bmr + st.act },
+ net: { unit: 'kcal', dec: 0, eps: 25, dir: 0, v: st => st.kin - st.bmr - st.act },
+ protein: { unit: 'g', dec: 0, eps: 2, dir: 1, v: st => st.protein }
+};
+const ACT = { min: { unit: 'min', dec: 0, eps: 1 }, km: { unit: 'km', dec: 1, eps: 0.1 }, kcal: { unit: 'kcal', dec: 0, eps: 5 } };
+const dayNum = s => { const a = s.split('-').map(Number); return Math.round(Date.UTC(a[0], a[1] - 1, a[2]) / 864e5); };
+const localDate = (s, how) => { const a = s.split('-').map(Number); return new Date(a[0], a[1] - 1, a[2]).toLocaleDateString('en-GB', how); };
+const shortDate = s => localDate(s, { day: 'numeric', month: 'short' });
+const fullDate = s => localDate(s, { day: 'numeric', month: 'short', year: 'numeric' });
+const gval = (v, m) => (+v.toFixed(m.dec)) + ' ' + m.unit;
+
+function setPeriod(p){ setPref('gPeriod', p); gOffset = 0; renderGraphs(); }
+function stepPeriod(n){ gOffset = Math.min(0, gOffset + n); renderGraphs(); }
+function firstDataDay(){
+ const days = allDays(), w = getWeights(), a = days[0] || '', b = w.length ? w[0].date : '';
+ return a && b ? (a < b ? a : b) : a || b || todayStr();
+}
+// Losing weight is the goal unless the goal weight in Settings is above the current weight
+function goalDir(){
+ const p = getProfile(), w = getWeights(), cur = w.length ? num(w[w.length - 1].kg) : p ? num(p.weight) : 0;
+ return p && num(p.goal) > cur + 0.05 ? 1 : -1;
+}
+// The dates the graphs cover. Long periods are drawn as weekly or monthly averages.
+function graphRange(){
+ const period = PERIODS.indexOf(pref('gPeriod', 'month')) >= 0 ? pref('gPeriod', 'month') : 'month';
+ const t = todayStr(), a = t.split('-').map(Number);
+ let from, to = t, label;
+ if(period === 'week'){
+  from = shift(t, 7 * gOffset - (dayNum(t) + 3) % 7);
+  to = shift(from, 6);
+  label = gOffset ? shortDate(from) + ' to ' + shortDate(to) : 'This week';
+ } else if(period === 'month'){
+  const first = new Date(a[0], a[1] - 1 + gOffset, 1);
+  from = dateStr(first);
+  to = dateStr(new Date(first.getFullYear(), first.getMonth() + 1, 0));
+  label = gOffset ? first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : 'This month';
+ } else if(period === 'year'){
+  from = (a[0] + gOffset) + '-01-01';
+  to = (a[0] + gOffset) + '-12-31';
+  label = gOffset ? String(a[0] + gOffset) : 'This year';
+ } else if(period === 'past'){ from = shift(t, -364); label = 'Past 12 months'; }
+ else { from = firstDataDay(); label = 'All time'; }
+ if(to > t) to = t;
+ // Start at the first logged day, so a new log fills the graph
+ const first = firstDataDay();
+ if(from < first && first <= to) from = first;
+ const span = dayNum(to) - dayNum(from) + 1;
+ return { period: period, from: from, to: to, label: label, span: span, unit: span <= 92 ? 'day' : span <= 800 ? 'week' : 'month', steps: period === 'week' || period === 'month' || period === 'year' };
+}
+// One point per day, week or month. get(day) gives that day's value, or null when the day does not count.
+function graphPoints(r, get, how){
+ const pts = [];
+ let cur = null;
+ for(let s = r.from, i = 0; s <= r.to; s = shift(s, 1), i++){
+  const v = get(s);
+  if(v == null) continue;
+  const key = r.unit === 'day' ? s : r.unit === 'month' ? s.slice(0, 7) : shift(s, -((dayNum(s) + 3) % 7));
+  if(!cur || cur.key !== key){ cur = { key: key, day: s, n: 0, sum: 0, max: v, xs: 0 }; pts.push(cur); }
+  cur.n++; cur.sum += v; cur.xs += i; cur.max = Math.max(cur.max, v);
+ }
+ pts.forEach(q => {
+  q.x = q.xs / q.n;
+  q.v = how === 'max' ? q.max : q.sum / q.n;
+  q.label = r.unit === 'day' ? prettyDate(q.day) : r.unit === 'week' ? 'week of ' + shortDate(q.key) : localDate(q.key + '-01', { month: 'long', year: 'numeric' });
+ });
+ return pts;
+}
+// Straight line of best fit through the points: where it starts, where it ends, and the change between
+function trendOf(pts){
+ const n = pts.length;
+ if(n < 2) return null;
+ const mx = pts.reduce((a, q) => a + q.x, 0) / n, my = pts.reduce((a, q) => a + q.v, 0) / n;
+ let sxy = 0, sxx = 0;
+ pts.forEach(q => { sxy += (q.x - mx) * (q.v - my); sxx += (q.x - mx) * (q.x - mx); });
+ const slope = sxx ? sxy / sxx : 0, x0 = pts[0].x, x1 = pts[n - 1].x;
+ return { y0: my + slope * (x0 - mx), y1: my + slope * (x1 - mx), change: slope * (x1 - x0) };
+}
+function niceStep(raw){
+ const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+ return [1, 2, 2.5, 5, 10].map(k => k * mag).find(s => s >= raw * 0.999) || raw;
+}
+// What one day adds up to, for the graphs
+function dayStat(s, p){
+ const st = { food: 0, kin: 0, protein: 0, act: 0, cardio: [], ex: {}, bmr: p ? bmrOf(p, s) : 0 };
+ load(s).forEach(x => {
+  if(x.type === 'food'){ st.food++; st.kin += num(x.kcal); st.protein += num(x.protein); }
+  else if(x.type === 'activity'){
+   const a = activityOf(x);
+   st.act += num(x.kcal);
+   st.cardio.push({ key: norm(a.act), min: a.min, km: a.km, kcal: num(x.kcal) });
+  }
+  else if(x.type === 'strength'){
+   const e = strengthOf(x);
+   st.act += num(x.kcal);
+   if(e){
+    const g = st.ex[norm(e.name)] || (st.ex[norm(e.name)] = { top: 0, volume: 0 });
+    g.top = Math.max(g.top, e.kg);
+    g.volume += e.kg * e.reps * e.sets;
+   }
+  }
+ });
+ return st;
+}
+function activityNames(){
+ const names = {};
+ allDays().forEach(s => load(s).forEach(x => { if(x.type === 'activity'){ const a = activityOf(x).act; names[norm(a)] = a; } }));
+ return names;
+}
+
+// Draws one line graph. Green when the trend is going the good way, red when it is not, blue when steady.
+function drawGraph(id, pts, o){
+ const W = 340, H = 150, L = 2, T = 8, pw = 292, ph = 120, bottom = T + ph, tr = trendOf(pts);
+ let tone = 'var(--accent)', arrow = '', words = pts.length ? 'Log more days in this period to see a trend.' : '';
+ if(tr){
+  const up = tr.change > 0, flat = Math.abs(tr.change) < o.eps, good = up === (o.dir > 0);
+  tone = flat ? 'var(--accent)' : good ? 'var(--good)' : 'var(--bad)';
+  arrow = flat ? '→' : up ? '▲' : '▼';
+  words = flat ? 'Trend: steady' : 'Trend: ' + (up ? 'up ' : 'down ') + gval(Math.abs(tr.change), o) + (good ? ', on track' : ', off track');
+ }
+ let html = `<div><span class='big' id='${id}-v'></span> <span class='muted' id='${id}-s'></span></div><div class='gtrend'><span style='color:${tone}'>${arrow}</span> ${words}</div>`;
+ if(!pts.length) html += `<div class='muted' style='padding:30px 0;text-align:center'>Nothing logged in this period.</div>`;
+ else {
+  let lo = Math.min.apply(null, pts.map(q => q.v)), hi = Math.max.apply(null, pts.map(q => q.v));
+  if(tr){ lo = Math.min(lo, tr.y0, tr.y1); hi = Math.max(hi, tr.y0, tr.y1); }
+  const pad = (hi - lo || Math.abs(hi) * 0.05 || 1) * 0.15;
+  hi += pad;
+  lo = o.zero ? 0 : lo - pad;
+  const X = x => L + 6 + (o.r.span > 1 ? x / (o.r.span - 1) : 0.5) * (pw - 12), Y = v => T + (hi - v) / (hi - lo) * ph;
+  const step = niceStep((hi - lo) / 3), dec = step % 1 === 0 ? 0 : step * 10 % 1 === 0 ? 1 : 2;
+  let svg = `<clipPath id='${id}-clip'><rect x='${L}' y='${T}' width='${pw}' height='${ph}'/></clipPath>`;
+  for(let v = Math.ceil(lo / step) * step; v <= hi; v += step){
+   const y = Y(v);
+   svg += `<line x1='${L}' x2='${L + pw}' y1='${y.toFixed(1)}' y2='${y.toFixed(1)}' stroke='var(--line)'/><text x='${L + pw + 6}' y='${(y + 4).toFixed(1)}'>${v.toFixed(dec)}</text>`;
+  }
+  pts.forEach(q => { q.px = X(q.x); q.py = Y(q.v); });
+  const line = pts.map(q => q.px.toFixed(1) + ',' + q.py.toFixed(1)).join(' '), first = pts[0], last = pts[pts.length - 1];
+  if(tr){
+   svg += `<polygon points='${first.px.toFixed(1)},${bottom} ${line} ${last.px.toFixed(1)},${bottom}' fill='${tone}' fill-opacity='0.1'/>`;
+   svg += `<line x1='${first.px.toFixed(1)}' y1='${Y(tr.y0).toFixed(1)}' x2='${last.px.toFixed(1)}' y2='${Y(tr.y1).toFixed(1)}' stroke='var(--muted)' stroke-width='1.5' stroke-dasharray='4 4' clip-path='url(#${id}-clip)'/>`;
+   svg += `<polyline points='${line}' fill='none' stroke='${tone}' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/>`;
+  }
+  svg += `<circle cx='${last.px.toFixed(1)}' cy='${last.py.toFixed(1)}' r='4' fill='${tone}' stroke='var(--card)' stroke-width='2'/>`;
+  svg += `<line id='${id}-x' y1='${T}' y2='${bottom}' stroke='var(--muted)' visibility='hidden'/><circle id='${id}-d' r='5' fill='${tone}' stroke='var(--card)' stroke-width='2' visibility='hidden'/>`;
+  const n = o.r.span, how = n <= 7 ? { weekday: 'short' } : n <= 92 ? { day: 'numeric', month: 'short' } : { month: 'short', year: '2-digit' };
+  const lab = i => localDate(shift(o.r.from, i), how);
+  svg += `<text x='${L}' y='${H - 4}'>${lab(0)}</text>`;
+  if(n > 2) svg += `<text x='${L + pw / 2}' y='${H - 4}' text-anchor='middle'>${lab(Math.floor((n - 1) / 2))}</text>`;
+  if(n > 1) svg += `<text x='${L + pw}' y='${H - 4}' text-anchor='end'>${lab(n - 1)}</text>`;
+  html += `<svg class='graph' viewBox='0 0 ${W} ${H}' role='img' aria-label='${o.title} graph' onpointerdown='scrub(event, "${id}")' onpointermove='scrub(event, "${id}")' onpointerup='unscrub(event, "${id}")' onpointerleave='unscrub(event, "${id}")' onpointercancel='unscrub(event, "${id}")'>${svg}</svg>`;
+ }
+ if(o.note) html += `<div class='muted' style='margin-top:6px'>${esc(o.note)}</div>`;
+ if(GRAPHS[id]) clearTimeout(GRAPHS[id].timer);
+ $(id).innerHTML = html;
+ GRAPHS[id] = { pts: pts, hero: o.hero, m: o, W: W };
+ endScrub(id);
+}
+// Sliding a finger along a graph shows the value at that point
+function scrub(e, id){
+ const g = GRAPHS[id];
+ if(!g || !g.pts.length) return;
+ clearTimeout(g.timer);
+ const box = e.currentTarget.getBoundingClientRect(), x = (e.clientX - box.left) / box.width * g.W;
+ let q = g.pts[0];
+ g.pts.forEach(k => { if(Math.abs(k.px - x) < Math.abs(q.px - x)) q = k; });
+ const line = $(id + '-x'), dot = $(id + '-d');
+ line.setAttribute('x1', q.px); line.setAttribute('x2', q.px); line.setAttribute('visibility', 'visible');
+ dot.setAttribute('cx', q.px); dot.setAttribute('cy', q.py); dot.setAttribute('visibility', 'visible');
+ $(id + '-v').textContent = gval(q.v, g.m);
+ $(id + '-s').textContent = q.label;
+}
+function unscrub(e, id){
+ const g = GRAPHS[id];
+ if(!g) return;
+ clearTimeout(g.timer);
+ if(e.pointerType === 'touch') g.timer = setTimeout(() => endScrub(id), 2500);
+ else endScrub(id);
+}
+function endScrub(id){
+ const g = GRAPHS[id], line = $(id + '-x'), dot = $(id + '-d');
+ if(line && dot){ line.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); }
+ $(id + '-v').textContent = g.hero[0];
+ $(id + '-s').textContent = g.hero[1];
+}
+
+function renderGraphs(){
+ const r = graphRange(), p = getProfile(), goal = goalDir(), first = firstDataDay(), cache = {};
+ const stat = s => cache[s] || (cache[s] = dayStat(s, p));
+ const total = pts => pts.reduce((a, q) => a + q.sum, 0), days = pts => pts.reduce((a, q) => a + q.n, 0);
+ const none = ['', ''];
+ PERIODS.forEach(k => { $('gp-' + k).className = k === r.period ? 'on' : ''; });
+ $('gLabel').textContent = r.label;
+ $('gPrev').style.visibility = $('gNext').style.visibility = r.steps ? '' : 'hidden';
+ $('gPrev').disabled = r.from <= first;
+ $('gNext').disabled = gOffset === 0;
+
+ // Calories: only days with food logged count
+ const ck = CAL[pref('gCal', 'in')] ? pref('gCal', 'in') : 'in', cm = CAL[ck];
+ $('gCal').value = ck;
+ let pts = graphPoints(r, s => { const st = stat(s); return st.food ? cm.v(st) : null; }, 'avg');
+ drawGraph('gcal', pts, Object.assign({}, cm, { r: r, title: 'Calories', dir: cm.dir || goal, hero: pts.length ? [gval(total(pts) / days(pts), cm), 'a day on average'] : none }));
+
+ // Weight
+ const wm = { unit: 'kg', dec: 1, eps: 0.1 }, kgOn = {}, all = getWeights().filter(x => x && isDate(x.date) && num(x.kg));
+ let latest = null;
+ all.forEach(x => { kgOn[x.date] = num(x.kg); if(x.date >= r.from && x.date <= r.to) latest = x; });
+ pts = graphPoints(r, s => kgOn[s] || null, 'avg');
+ const now = all.length ? num(all[all.length - 1].kg) : 0, target = p ? num(p.goal) : 0;
+ const note = !target || !now ? '' : Math.abs(now - target) < 0.05 ? 'Goal reached: ' + fmt(target) + ' kg.' : 'Goal: ' + fmt(target) + ' kg, ' + fmt(Math.abs(now - target)) + ' kg to go.';
+ drawGraph('gwt', pts, Object.assign({}, wm, { r: r, title: 'Weight', dir: goal, note: note, hero: latest ? [kg2(latest.kg) + ' kg', prettyDate(latest.date)] : none }));
+
+ // Cardio: a day without any counts as zero
+ const names = activityNames(), ak = names[pref('gAct', '')] ? pref('gAct', '') : '', mk = ACT[pref('gActM', 'min')] ? pref('gActM', 'min') : 'min', am = ACT[mk];
+ $('gAct').innerHTML = `<option value=''>All activities</option>` + Object.keys(names).sort().map(k => `<option value='${esc(k)}'>${esc(names[k])}</option>`).join('');
+ $('gAct').value = ak;
+ $('gActM').value = mk;
+ pts = graphPoints(r, s => s < first ? null : stat(s).cardio.reduce((a, c) => a + (!ak || c.key === ak ? c[mk] : 0), 0), 'avg');
+ const sum = total(pts);
+ if(!sum) pts = [];
+ drawGraph('gact', pts, Object.assign({}, am, { r: r, title: 'Cardio', dir: 1, zero: true, unit: am.unit + (r.unit === 'day' ? '' : ' a day'), hero: sum ? [gval(sum, am), 'in total'] : none }));
+
+ // Strength: one exercise at a time
+ renderStrength();
+ const ek = $('prEx').value, xk = pref('gExM', 'top') === 'volume' ? 'volume' : 'top', xm = xk === 'top' ? { unit: 'kg', dec: 1, eps: 0.25 } : { unit: 'kg', dec: 0, eps: 10 };
+ $('gExM').value = xk;
+ pts = graphPoints(r, s => { const g = stat(s).ex[ek]; return g ? g[xk] : null; }, xk === 'top' ? 'max' : 'avg');
+ const best = !pts.length ? 0 : xk === 'top' ? Math.max.apply(null, pts.map(q => q.max)) : total(pts) / days(pts);
+ drawGraph('gex', pts, Object.assign({}, xm, { r: r, title: 'Strength', dir: 1, hero: pts.length ? [gval(best, xm), xk === 'top' ? 'heaviest' : 'volume per session'] : none }));
+}
+
 // ---------- Settings ----------
 function saveSettings(){
  const k = $('sKey').value.trim();
  if(k) setPref('apiKey', k);
- const p = { sex: $('sSex').value, age: num($('sAge').value), height: num($('sHeight').value), weight: num($('sWeight').value) };
+ const p = { sex: $('sSex').value, age: num($('sAge').value), height: num($('sHeight').value), weight: num($('sWeight').value), goal: num($('sGoal').value) };
  if(!p.age || !p.height || !p.weight){ alert('Please fill in age, height and weight'); return; }
  if(!getKey()){ alert('Please paste your API key'); return; }
  setJSON('profile', p);
  const w = getWeights();
  if(!w.length || w[w.length - 1].kg !== p.weight) setWeight(todayStr(), p.weight);
  $('sKey').value = '';
- $('settings').open = false;
  render();
+ showTab('log');
 }
 
 // ---------- Drawing the screen ----------
@@ -842,11 +1510,13 @@ function render(){
  $('sTheme').value = getTheme();
  $('sModel').value = getModel();
  $('sWeb').checked = webOn();
- if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; }
- if(!p || !getKey()) $('settings').open = true;
+ if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; $('sGoal').value = num(p.goal) || ''; }
+ $('sKey').placeholder = getKey() ? 'Saved. Paste a new key to change it.' : 'Paste your key. It stays on this phone.';
+ if(curTab === 'graphs') renderGraphs();
 }
 closeEdit();
 render();
+showTab(getProfile() && getKey() ? 'log' : 'settings');
 </script>
 </body>
 </html>
