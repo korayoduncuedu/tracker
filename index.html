@@ -23,28 +23,38 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  h1{font-size:22px;margin:0}
  h2{font-size:17px;margin:0 0 8px}
  .card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px}
- input,select,textarea,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--border);width:100%;box-sizing:border-box;margin-top:6px;background:var(--input);color:var(--text)}
+ input,select,textarea,button,.btn{font-family:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid var(--border);width:100%;box-sizing:border-box;margin-top:6px;background:var(--input);color:var(--text)}
  input::placeholder,textarea::placeholder{color:var(--muted)}
  button{background:var(--accent);color:#fff;border:none}
- button.sec{background:var(--sec);color:var(--text)}
+ button.sec,.btn{background:var(--sec);color:var(--text);border:none}
+ .btn{display:block;text-align:center}
+ .btn input{display:none}
  .row{display:flex;gap:8px}
  .row>*{flex:1;min-width:0}
  .big{font-size:26px;font-weight:700}
  .mid{font-size:18px;font-weight:600}
  .muted{color:var(--muted);font-size:13px}
- .item{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+ .item{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
  .day{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
- .del{float:right;color:var(--danger);padding:0 4px}
+ .del{float:right;color:var(--danger);padding:0 4px 0 12px}
  .check{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:15px}
  .check input{width:auto;margin:0}
  summary{font-size:17px;font-weight:600}
+ details.inner{margin-top:10px}
+ details.inner summary{font-size:15px;font-weight:400;color:var(--accent)}
+ .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:20}
+ .sheet{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:10;overflow:auto}
+ .sheet.open{display:flex}
+ .sheet .card{width:100%;max-width:420px;margin:0}
+ .photo{display:flex;align-items:center;gap:10px;margin-top:8px}
+ .photo img{width:56px;height:56px;object-fit:cover;border-radius:10px}
 </style>
 </head>
 <body>
 
 <div class='row' style='align-items:center;margin-bottom:10px'>
  <button class='sec' style='flex:0 0 52px' onclick='go(-1)'>&lsaquo;</button>
- <div style='text-align:center' onclick='go(0)'><h1 id='dayTitle'>Today</h1><div class='muted' id='daySub'>v7</div></div>
+ <div style='text-align:center' onclick='go(0)'><h1 id='dayTitle'>Today</h1><div class='muted' id='daySub'></div></div>
  <button class='sec' style='flex:0 0 52px' onclick='go(1)'>&rsaquo;</button>
 </div>
 
@@ -61,14 +71,33 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  </div>
  <div class='muted' id='bmrLine'></div>
  <div class='muted' id='waterLine'></div>
- <div class='muted' id='status'></div>
 </div>
 
 <div class='card'>
  <h2>Food</h2>
  <textarea id='foodText' rows='2' placeholder='e.g. 2 yumurta, menemen, Popeyes tavuk sandviç'></textarea>
  <div class='muted'>Name the restaurant or brand to get its official numbers.</div>
- <button onclick='run(addFood)'>Add food</button>
+ <div id='photoBox' class='photo' style='display:none'>
+  <img id='photoImg' alt=''>
+  <div class='muted' style='flex:1'>Photo attached. Write a note above if you like, then tap Add food.</div>
+  <span class='del' onclick='setPhoto()'>x</span>
+ </div>
+ <div class='row'>
+  <button onclick='run(addFood)'>Add food</button>
+  <label class='btn'>Add a photo<input type='file' accept='image/*' onchange='onPhoto(this)'></label>
+ </div>
+ <details class='inner'>
+  <summary>I know the calories</summary>
+  <input id='mName' placeholder='Food name'>
+  <input id='mKcal' type='number' inputmode='decimal' placeholder='Calories (required)'>
+  <div class='row'>
+   <input id='mP' type='number' inputmode='decimal' placeholder='Protein g'>
+   <input id='mC' type='number' inputmode='decimal' placeholder='Carbs g'>
+   <input id='mF' type='number' inputmode='decimal' placeholder='Fat g'>
+  </div>
+  <div class='muted'>Protein, carbs and fat are optional.</div>
+  <button onclick='run(addManual)'>Add</button>
+ </details>
 </div>
 
 <div class='card'>
@@ -89,9 +118,10 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 
 <div class='card'>
  <h2>Strength</h2>
- <input id='exName' placeholder='Exercise, e.g. dumbbell curl'>
+ <input id='exName' list='exList' placeholder='Exercise, e.g. dumbbell curl'>
+ <datalist id='exList'></datalist>
  <div class='row'>
-  <input id='exKg' type='number' step='0.5' placeholder='kg'>
+  <input id='exKg' type='number' step='0.5' inputmode='decimal' placeholder='kg'>
   <input id='exReps' type='number' placeholder='reps'>
   <input id='exSets' type='number' placeholder='sets'>
  </div>
@@ -109,6 +139,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 
 <div class='card'>
  <h2 id='logTitle'>Log</h2>
+ <div class='muted'>Tap an entry to change it.</div>
  <div id='log'></div>
  <button class='sec' onclick='clearDay()'>Clear this day</button>
 </div>
@@ -131,6 +162,25 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  <div id='weekDays' style='margin-top:6px'></div>
 </div>
 
+<details class='card'>
+ <summary>Weight</summary>
+ <div class='muted' id='wtInfo' style='margin-top:8px'></div>
+ <div id='wtChart'></div>
+ <div class='row'>
+  <input id='wtKg' type='number' step='0.1' inputmode='decimal' placeholder='Weight in kg'>
+  <button style='flex:0 0 110px' onclick='run(logWeight)'>Save</button>
+ </div>
+ <div class='muted' id='wtDay'></div>
+ <div id='wtList' style='margin-top:6px'></div>
+</details>
+
+<details class='card'>
+ <summary>Strength progress</summary>
+ <select id='prEx' onchange='renderStrength()'></select>
+ <div class='muted' id='prInfo' style='margin-top:8px'></div>
+ <div id='prList'></div>
+</details>
+
 <details class='card' id='settings'>
  <summary>Settings</summary>
  <div class='muted' style='margin-top:8px'>Appearance</div>
@@ -149,29 +199,321 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  <div class='row'>
   <input id='sAge' type='number' placeholder='Age'>
   <input id='sHeight' type='number' placeholder='Height cm'>
-  <input id='sWeight' type='number' step='0.1' placeholder='Weight kg'>
+  <input id='sWeight' type='number' step='0.1' inputmode='decimal' placeholder='Weight kg'>
  </div>
  <button onclick='saveSettings()'>Save</button>
+ <div class='muted' style='margin-top:12px'>Backup</div>
+ <button class='sec' onclick='run(exportBackup)'>Save a backup file</button>
+ <label class='btn'>Restore from a backup file<input type='file' accept='.json,application/json' onchange='run(() => importBackup(this))'></label>
+ <button class='sec' onclick='run(exportCSV)'>Save as a spreadsheet</button>
+ <div class='muted'>Restoring adds what is missing and never deletes anything. Backups do not contain your API key.</div>
 </details>
 
-<script>
-const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const num = v => +v || 0;
-const R = v => Math.round(v);
+<div id='sheet' class='sheet' onclick='if(event.target === this) closeEdit()'>
+ <div class='card'>
+  <h2 id='eTitle'>Edit</h2>
+  <div id='eMain'>
+   <div class='muted'>Description</div>
+   <input id='eLabel'>
+   <div class='muted' style='margin-top:8px'>Calories</div>
+   <input id='eKcal' type='number' inputmode='decimal'>
+  </div>
+  <div id='eFood'>
+   <div class='row' style='margin-top:8px'>
+    <div><div class='muted'>Protein g</div><input id='eP' type='number' inputmode='decimal'></div>
+    <div><div class='muted'>Carbs g</div><input id='eC' type='number' inputmode='decimal'></div>
+    <div><div class='muted'>Fat g</div><input id='eF' type='number' inputmode='decimal'></div>
+   </div>
+   <div class='muted' style='margin-top:8px'>Ate more or less? Scale everything:</div>
+   <div class='row'>
+    <button class='sec' onclick='scaleEdit(0.5)'>Half</button>
+    <button class='sec' onclick='scaleEdit(1.5)'>x 1.5</button>
+    <button class='sec' onclick='scaleEdit(2)'>Double</button>
+   </div>
+  </div>
+  <div id='eStrength'>
+   <div class='muted'>Exercise</div>
+   <input id='eName'>
+   <div class='row' style='margin-top:8px'>
+    <div><div class='muted'>kg</div><input id='eKg' type='number' step='0.5' inputmode='decimal'></div>
+    <div><div class='muted'>reps</div><input id='eReps' type='number'></div>
+    <div><div class='muted'>sets</div><input id='eSets' type='number'></div>
+   </div>
+  </div>
+  <div id='eWater'>
+   <div class='muted'>Water in ml</div>
+   <input id='eMl' type='number'>
+  </div>
+  <button onclick='run(saveEdit)'>Save</button>
+  <div class='row'>
+   <button class='sec' onclick='closeEdit()'>Cancel</button>
+   <button class='sec' style='color:var(--danger)' onclick='delEdit()'>Delete</button>
+  </div>
+ </div>
+</div>
 
+<div id='status' class='toast' style='display:none'>Working...</div>
+
+<script>
+const VERSION = 'v9';
+const API = 'https://api.anthropic.com/v1/messages';
+const NL = String.fromCharCode(10);
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) && n > 0 ? n : 0; };
+const R = v => Math.round(v);
+const fmt = v => Math.round(v * 10) / 10;
+const show = (id, on) => { $(id).style.display = on ? '' : 'none'; };
+const norm = s => String(s).toLocaleLowerCase('tr').split(NL).join(' ').split(' ').filter(Boolean).join(' ');
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+
+// ---------- Storage ----------
+function getJSON(k, d){ try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch(e) { return d; } }
+function setJSON(k, v){ localStorage.setItem(k, JSON.stringify(v)); }
 function pref(k, d){ try { return localStorage.getItem(k) || d; } catch(e) { return d; } }
 function setPref(k, v){ try { localStorage.setItem(k, v); } catch(e) {} }
+const getKey = () => pref('apiKey', '');
 const getModel = () => pref('model', 'claude-haiku-5-5');
 const webOn = () => pref('web', 'on') === 'on';
-
-function getTheme(){ return pref('theme', 'auto'); }
+const getTheme = () => pref('theme', 'auto');
 function setTheme(th){
  setPref('theme', th);
  if(th === 'auto') document.documentElement.removeAttribute('data-theme');
  else document.documentElement.setAttribute('data-theme', th);
 }
 
+// ---------- Dates (local time, YYYY-MM-DD) ----------
+const dateStr = dt => dt.toLocaleDateString('en-CA');
+const todayStr = () => dateStr(new Date());
+const isDate = s => /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(s);
+function shift(s, n){ const [y,m,d] = s.split('-').map(Number); return dateStr(new Date(y, m-1, d+n)); }
+function prettyDate(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}); }
+function dayName(s){ const t = todayStr(); if(s === t) return 'Today'; if(s === shift(t, -1)) return 'Yesterday'; return prettyDate(s); }
+let viewDate = todayStr();
+let lastToday = viewDate;
+function go(n){ viewDate = n === 0 ? todayStr() : shift(viewDate, n); if(viewDate > todayStr()) viewDate = todayStr(); render(); window.scrollTo(0, 0); }
+function goTo(s){ viewDate = s; render(); window.scrollTo(0, 0); }
+document.addEventListener('visibilitychange', () => {
+ if(document.visibilityState !== 'visible') return;
+ const t = todayStr();
+ if(t !== lastToday){ if(viewDate === lastToday) viewDate = t; lastToday = t; render(); }
+});
+
+// ---------- Profile, weight and BMR ----------
+const getProfile = () => getJSON('profile', null);
+function needProfile(){ const p = getProfile(); if(!p) throw new Error('Fill in Settings first'); return p; }
+const getWeights = () => getJSON('weights', []).slice().sort((a, b) => a.date < b.date ? -1 : 1);
+// Weight on a given day: the latest weigh-in on or before it
+function weightOn(s, p){
+ const w = getWeights();
+ if(!w.length) return p.weight;
+ let kg = w[0].kg;
+ for(const x of w){ if(x.date <= s) kg = x.kg; else break; }
+ return kg;
+}
+function bmrOf(p, s){ return Math.round(10*weightOn(s, p) + 6.25*p.height - 5*p.age + (p.sex === 'male' ? 5 : -161)); }
+// Calories above resting: BMR is already counted in the daily total, so it is subtracted here
+function burnAboveRest(met, p, minutes){ const h = minutes/60; return Math.max(0, met*weightOn(viewDate, p)*h - bmrOf(p, viewDate)/24*h); }
+function setWeight(s, kg){
+ const w = getWeights().filter(x => x.date !== s);
+ if(kg) w.push({ date: s, kg: kg });
+ w.sort((a, b) => a.date < b.date ? -1 : 1);
+ setJSON('weights', w);
+ const p = getProfile();
+ if(p && w.length){ p.weight = w[w.length - 1].kg; setJSON('profile', p); }
+}
+
+// ---------- Daily log ----------
+const keyFor = s => 'log-' + s;
+function load(s){ const d = getJSON(keyFor(s || viewDate), []); return Array.isArray(d) ? d : []; }
+function save(d){ setJSON(keyFor(viewDate), d); render(); }
+function addEntry(e){ const d = load(); d.push(Object.assign({ id: newId() }, e)); save(d); }
+function allDays(){
+ const out = [];
+ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf('log-') === 0 && isDate(k.slice(4))) out.push(k.slice(4)); }
+ return out.sort();
+}
+function totals(d, bmr){
+ const sum = (f, k) => d.filter(f).reduce((a, x) => a + num(x[k]), 0);
+ const isFood = x => x.type === 'food', isAct = x => x.type === 'activity' || x.type === 'strength';
+ const kin = sum(isFood, 'kcal'), act = sum(isAct, 'kcal');
+ return { kin, act, out: bmr + act, net: kin - bmr - act,
+  p: sum(isFood, 'protein'), c: sum(isFood, 'carbs'), f: sum(isFood, 'fat'),
+  water: sum(x => x.type === 'water', 'ml'), count: d.length,
+  sessions: d.filter(isAct).length };
+}
+
+// ---------- Talking to Claude ----------
+let busy = false;
+async function run(fn){
+ if(busy) return;
+ busy = true;
+ show('status', true);
+ try { await fn(); } catch(e) { alert(e.message || String(e)); }
+ busy = false;
+ show('status', false);
+}
+
+// Finds the JSON object at the end of a reply, even with text or citations before it
+function parseJSON(t){
+ const end = t.lastIndexOf('}');
+ for(let i = t.indexOf('{'); i >= 0 && i < end; i = t.indexOf('{', i + 1)){
+  try { return JSON.parse(t.slice(i, end + 1)); } catch(e) {}
+ }
+ return null;
+}
+
+// content is a string or a list of content blocks. With opts.web, Claude may run up to 2 web searches (about 1 cent each).
+async function ask(content, opts){
+ opts = opts || {};
+ const key = getKey();
+ if(!key) throw new Error('Add your API key in Settings first');
+ const body = { model: getModel(), max_tokens: 3000, messages: [{ role: 'user', content: content }] };
+ if(opts.system) body.system = opts.system;
+ if(opts.web) body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }];
+ let searches = 0;
+ for(let turn = 0; turn < 4; turn++){
+  let j;
+  try {
+   const r = await fetch(API, {
+    method: 'POST',
+    headers: {
+     'content-type': 'application/json',
+     'x-api-key': key,
+     'anthropic-version': '2023-06-01',
+     'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
+   });
+   j = await r.json();
+  } catch(e) { throw new Error('Could not reach Claude. Check your internet connection.'); }
+  if(!j || !Array.isArray(j.content)){
+   const err = (j && j.error) || {};
+   if(err.type === 'authentication_error') throw new Error('Your API key was not accepted. Check it in Settings.');
+   throw new Error(err.message || 'Claude returned an unknown error');
+  }
+  searches += (j.usage && j.usage.server_tool_use && j.usage.server_tool_use.web_search_requests) || 0;
+  if(j.stop_reason === 'pause_turn'){ body.messages = body.messages.concat([{ role: 'assistant', content: j.content }]); continue; }
+  const out = parseJSON(j.content.filter(b => b.type === 'text').map(b => b.text).join(''));
+  if(!out) throw new Error(j.stop_reason === 'max_tokens' ? 'The answer was cut off. Try a shorter entry.' : 'Could not read the answer. Please try again.');
+  out._searches = searches;
+  return out;
+ }
+ throw new Error('That took too long. Please try again.');
+}
+
+// ---------- Food ----------
+const FOOD_SYSTEM = [
+ 'You estimate calories and macros for a personal food diary. The user lives in Turkey and often writes food names in Turkish.',
+ '',
+ 'For each food:',
+ '1. Amount: use the amount the user gave. If none was given, assume one normal serving as served in Turkey and state what you assumed in grams, millilitres or pieces.',
+ '2. Work out the weight in grams first, then calories and macros from standard food composition values for that food as it is usually prepared in Turkey.',
+ '3. Count what normally comes with it: cooking oil and butter, sauces, bread or lavash, sugar in drinks. Restaurant, fast food and street food portions are bigger and oilier than home cooking.',
+ '4. Check that kcal is close to 4 x protein + 4 x carbs + 9 x fat (alcohol adds 7 kcal per gram) and fix the numbers if it is not.',
+ 'People underestimate what they eat, so never pick the low end. When unsure, pick the middle of the realistic range.',
+ 'List each food as its own item. Write names in English but keep well-known Turkish names such as menemen or simit.',
+ '',
+ 'End your reply with one JSON object and nothing after it, in exactly this shape:',
+ '{"items":[{"name":"Menemen","portion":"1 serving, about 300 g","kcal":380,"protein_g":18,"carbs_g":12,"fat_g":28}]}',
+ 'Use an empty items list if there is no food to log.'
+].join(NL);
+const WEB_RULE = NL + NL + 'If a food is from a restaurant chain or a packaged brand, search the web for its official nutrition values. Search in Turkish, for example the brand and product name plus the words kalori besin değeri, prefer the Turkish menu or product page, and use those values. Never search for homemade or generic dishes.';
+const NO_WEB_RULE = NL + NL + 'You cannot look anything up. For branded foods, use what you know of the published values for that brand.';
+const PHOTO_RULE = 'The photo shows what the user ate, or a nutrition label. For a meal, name each food and judge the amounts from the plate, cutlery and other objects for scale. For a nutrition label, read the values from the label and use one package or one serving unless the note says otherwise.';
+const NOTE_RULE = ' The user wrote this note about the photo. Follow it over what the photo suggests: it may say what the food is, how much of it they ate, or what to leave out. Note: ';
+const FOOD_HINT = 'e.g. 2 yumurta, menemen, Popeyes tavuk sandviç';
+const NOTE_HINT = 'Optional note, e.g. I ate half of this, no bread';
+
+// A photo waits here until Add food is tapped, so a note can be written first
+let pendingPhoto = '';
+function setPhoto(data){
+ pendingPhoto = data || '';
+ show('photoBox', !!pendingPhoto);
+ if(pendingPhoto) $('photoImg').src = 'data:image/jpeg;base64,' + pendingPhoto;
+ else $('photoImg').removeAttribute('src');
+ $('foodText').placeholder = pendingPhoto ? NOTE_HINT : FOOD_HINT;
+}
+
+// Earlier corrections by the user that look related to this text
+function hintsFor(text){
+ const learned = getJSON('learned', {});
+ const words = norm(text).split(' ').filter(w => w.length > 2);
+ return Object.keys(learned).filter(k => words.some(w => k.indexOf(w) >= 0)).slice(0, 5).map(k => {
+  const v = learned[k];
+  return '- ' + k + ' = ' + R(num(v.kcal)) + ' kcal, protein ' + R(num(v.protein)) + ' g, carbs ' + R(num(v.carbs)) + ' g, fat ' + R(num(v.fat)) + ' g';
+ });
+}
+
+async function addFood(){
+ const photo = pendingPhoto;
+ const text = $('foodText').value.trim();
+ if(!text && !photo) return;
+ // Same text as something corrected before: reuse the corrected numbers, no AI call
+ const known = photo ? null : getJSON('learned', {})[norm(text)];
+ if(known){
+  addEntry({ type: 'food', label: known.label, kcal: num(known.kcal), protein: num(known.protein), carbs: num(known.carbs), fat: num(known.fat), src: text, saved: true });
+  $('foodText').value = '';
+  return;
+ }
+ const web = !photo && webOn();
+ let prompt = photo ? PHOTO_RULE + (text ? NOTE_RULE + text : '') : 'The user ate: ' + text;
+ const hints = text ? hintsFor(text) : [];
+ if(hints.length) prompt += NL + NL + 'The user corrected these foods before. Trust these values over your own and scale them to the amount eaten:' + NL + hints.join(NL);
+ const content = photo
+  ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo } }, { type: 'text', text: prompt }]
+  : prompt;
+ let res;
+ try { res = await ask(content, { system: FOOD_SYSTEM + (web ? WEB_RULE : NO_WEB_RULE), web: web }); }
+ catch(e){
+  if(!web) throw e;
+  // Web search failed for some reason: fall back to a plain estimate
+  res = await ask(content, { system: FOOD_SYSTEM + NO_WEB_RULE });
+ }
+ const items = (Array.isArray(res.items) ? res.items : []).filter(i => i && i.name);
+ if(!items.length) throw new Error(photo ? 'Could not find any food in that photo' : 'Could not read that food. Try rewording it.');
+ const sum = k => items.reduce((a, i) => a + num(i[k]), 0);
+ const many = items.length > 1;
+ addEntry({
+  type: 'food',
+  label: items.map(i => i.name + (i.portion ? ', ' + i.portion : '') + (many ? ' (' + R(num(i.kcal)) + ')' : '')).join('; '),
+  kcal: sum('kcal'), protein: sum('protein_g'), carbs: sum('carbs_g'), fat: sum('fat_g'),
+  src: text, web: res._searches > 0, photo: !!photo
+ });
+ $('foodText').value = '';
+ setPhoto();
+}
+
+// Shrinks a photo to at most 1280 px and returns it as base64 JPEG
+function shrinkPhoto(file){
+ return new Promise((resolve, reject) => {
+  const url = URL.createObjectURL(file), img = new Image();
+  img.onload = () => {
+   const s = Math.min(1, 1280 / Math.max(img.width, img.height));
+   const c = document.createElement('canvas');
+   c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+   URL.revokeObjectURL(url);
+   resolve(c.toDataURL('image/jpeg', 0.8).split(',')[1]);
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not open that photo')); };
+  img.src = url;
+ });
+}
+function onPhoto(input){
+ const f = input.files && input.files[0];
+ input.value = '';
+ if(f) run(async () => setPhoto(await shrinkPhoto(f)));
+}
+
+function addManual(){
+ if(!$('mKcal').value.trim()) throw new Error('Enter the calories');
+ addEntry({ type: 'food', label: $('mName').value.trim() || 'Food', kcal: num($('mKcal').value),
+  protein: num($('mP').value), carbs: num($('mC').value), fat: num($('mF').value), manual: true });
+ ['mName', 'mKcal', 'mP', 'mC', 'mF'].forEach(id => { $(id).value = ''; });
+}
+
+// ---------- Cardio and activity ----------
 // MET values by speed in km/h, from the Compendium of Physical Activities
 const WALK = [[3.2,2.8],[4.0,3.0],[4.8,3.5],[5.6,4.3],[6.4,5.0],[7.2,7.0],[8.0,8.3]];
 const RUN = [[6.4,6.0],[8.0,8.3],[9.7,9.8],[11.3,11.0],[12.9,11.8],[14.5,12.8],[16.1,14.5]];
@@ -190,107 +532,10 @@ function interp(t, x){
  return t[t.length-1][1];
 }
 
-// Dates (local time, YYYY-MM-DD)
-const dateStr = dt => dt.toLocaleDateString('en-CA');
-const todayStr = () => dateStr(new Date());
-function shift(s, n){ const [y,m,d] = s.split('-').map(Number); return dateStr(new Date(y, m-1, d+n)); }
-function prettyDate(s){ const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'}); }
-function dayName(s){ const t = todayStr(); if(s === t) return 'Today'; if(s === shift(t, -1)) return 'Yesterday'; return prettyDate(s); }
-let viewDate = todayStr();
-let lastToday = viewDate;
-function go(n){ viewDate = n === 0 ? todayStr() : shift(viewDate, n); if(viewDate > todayStr()) viewDate = todayStr(); render(); window.scrollTo(0, 0); }
-function goTo(s){ viewDate = s; render(); window.scrollTo(0, 0); }
-document.addEventListener('visibilitychange', () => {
- if(document.visibilityState !== 'visible') return;
- const t = todayStr();
- if(t !== lastToday){ if(viewDate === lastToday) viewDate = t; lastToday = t; render(); }
-});
-
-function getKey(){ return localStorage.getItem('apiKey') || ''; }
-function getProfile(){ try { return JSON.parse(localStorage.getItem('profile') || 'null'); } catch(e) { return null; } }
-function bmrOf(p){ return Math.round(10*p.weight + 6.25*p.height - 5*p.age + (p.sex === 'male' ? 5 : -161)); }
-// Calories above resting: BMR is already counted in the daily total, so it is subtracted here
-function burnAboveRest(met, p, minutes){ const h = minutes/60; return Math.max(0, met*p.weight*h - bmrOf(p)/24*h); }
-const keyFor = s => 'log-' + s;
-function load(s){ try { return JSON.parse(localStorage.getItem(keyFor(s || viewDate)) || '[]'); } catch(e) { return []; } }
-function save(d){ localStorage.setItem(keyFor(viewDate), JSON.stringify(d)); render(); }
-function needProfile(){ const p = getProfile(); if(!p) throw new Error('Fill in Settings first'); return p; }
-
-function totals(d, bmr){
- const sum = (f, k) => d.filter(f).reduce((a, x) => a + num(x[k]), 0);
- const isFood = x => x.type === 'food', isAct = x => x.type === 'activity' || x.type === 'strength';
- const kin = sum(isFood, 'kcal'), act = sum(isAct, 'kcal');
- return { kin, act, out: bmr + act, net: kin - bmr - act,
-  p: sum(isFood, 'protein'), c: sum(isFood, 'carbs'), f: sum(isFood, 'fat'),
-  water: sum(x => x.type === 'water', 'ml'), count: d.length,
-  sessions: d.filter(isAct).length };
-}
-
-async function run(fn){
- $('status').textContent = 'Working...';
- try { await fn(); } catch(e) { alert('Error: ' + e.message); }
- $('status').textContent = '';
-}
-
-// Calls Claude. With useWeb, Claude may run up to 2 web searches (about 1 cent each).
-async function ask(prompt, useWeb){
- const key = getKey();
- if(!key) throw new Error('Add your API key in Settings first');
- const body = { model: getModel(), max_tokens: 2000, messages: [{ role: 'user', content: prompt }] };
- if(useWeb) body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }];
- let searches = 0;
- for(let turn = 0; turn < 4; turn++){
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-   method: 'POST',
-   headers: {
-    'content-type': 'application/json',
-    'x-api-key': key,
-    'anthropic-version': '2023-06-01',
-    'anthropic-dangerous-direct-browser-access': 'true'
-   },
-   body: JSON.stringify(body)
-  });
-  const j = await r.json();
-  if(!Array.isArray(j.content)) throw new Error((j.error && j.error.message) || 'Unknown error');
-  searches += (j.usage && j.usage.server_tool_use && j.usage.server_tool_use.web_search_requests) || 0;
-  if(j.stop_reason === 'pause_turn'){ body.messages = body.messages.concat([{ role: 'assistant', content: j.content }]); continue; }
-  const t = j.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  if(!t) throw new Error('No text in reply (stop reason: ' + j.stop_reason + ')');
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if(a < 0 || b < 0) throw new Error('Unexpected reply: ' + t.slice(0, 100));
-  const out = JSON.parse(t.slice(a, b + 1));
-  out._searches = searches;
-  return out;
- }
- throw new Error('The search took too long, please try again');
-}
-
-async function addFood(){
- const text = $('foodText').value.trim();
- if(!text) return;
- const web = webOn();
- const rules = web
-  ? 'If an item is from a restaurant chain or a packaged brand, search the web for its official nutrition information, preferring the Turkish menu or Turkish product page, and use those values. Do not search for homemade or generic dishes; estimate those from typical Turkish portions unless quantities are given.'
-  : 'Estimate using typical Turkish portions unless quantities are given.';
- const res = await ask(`The user lives in Turkey and wrote what they ate, possibly in Turkish: ${text}. ${rules} End your reply with a JSON object and nothing after it. The object has 'items', an array of objects with 'name' in English, 'portion' (the amount you assumed, such as '1 sandwich' or '250 g'), plus 'kcal', 'protein_g', 'carbs_g' and 'fat_g' as numbers.`, web);
- const items = Array.isArray(res.items) ? res.items : [];
- if(!items.length) throw new Error('Could not read that food, try rewording it');
- const sum = k => items.reduce((a, i) => a + num(i[k]), 0);
- const d = load();
- d.push({
-  type: 'food',
-  label: items.map(i => i.name + (i.portion ? ', ' + i.portion : '') + ' (' + R(num(i.kcal)) + ')').join('; '),
-  kcal: sum('kcal'), protein: sum('protein_g'), carbs: sum('carbs_g'), fat: sum('fat_g'),
-  web: res._searches > 0
- });
- save(d);
- $('foodText').value = '';
-}
-
 async function addActivity(){
  const p = needProfile();
- const type = $('actType').value, min = +$('actMin').value, raw = +$('actDist').value || 0, inten = $('actInt').value;
- if(!min) return;
+ const type = $('actType').value, min = num($('actMin').value), raw = num($('actDist').value), inten = $('actInt').value;
+ if(!min) throw new Error('Enter the minutes');
  let km = 0, note = '';
  if(raw){
   if(raw > 100 && (type === 'Walking' || type === 'Running')){
@@ -302,9 +547,9 @@ async function addActivity(){
  if(type === 'Other'){
   const what = $('actOther').value.trim();
   if(!what) throw new Error('Describe the activity first');
-  const res = await ask(`Give the MET value from the Compendium of Physical Activities for: ${what}, intensity ${inten}. Reply ONLY with JSON: an object with one key 'met' as a number.`);
-  met = +res.met;
-  if(!met) throw new Error('Could not get a MET value');
+  const res = await ask('Give the MET value from the Compendium of Physical Activities for this activity: ' + what + ', intensity ' + inten + '. End your reply with one JSON object and nothing after it, like {"met":5.5}');
+  met = num(res.met);
+  if(!met) throw new Error('Could not work that one out. Try describing it differently.');
   label = what + ' (' + inten + ')';
  } else {
   const speed = km ? km / (min/60) : 0;
@@ -312,68 +557,261 @@ async function addActivity(){
   met = (table && speed) ? interp(table, speed) : BY_INTENSITY[type][inten];
   label = type + (table && speed ? ' at ' + speed.toFixed(1) + ' km/h' : ' (' + inten + ')');
  }
- const d = load();
- d.push({ type: 'activity', label: `${label}, ${min} min${note ? ', ' + note : ''}, MET ${met.toFixed(1)}`, kcal: burnAboveRest(met, p, min) });
- save(d);
+ addEntry({ type: 'activity', label: label + ', ' + min + ' min' + (note ? ', ' + note : '') + ', MET ' + met.toFixed(1), kcal: burnAboveRest(met, p, min) });
  $('actMin').value = ''; $('actDist').value = ''; $('actOther').value = '';
 }
 
-async function addStrength(){
+// ---------- Strength ----------
+// Burn is worked out in the app: about 4 s per rep plus 90 s rest per set, at 3.5 MET (resistance training)
+function strengthEntry(p, name, kg, reps, sets){
+ const minutes = sets * (reps * 4 + 90) / 60;
+ return { type: 'strength', name: name, kg: kg, reps: reps, sets: sets,
+  label: name + ': ' + kg + ' kg x ' + reps + ' reps x ' + sets + ' sets',
+  kcal: burnAboveRest(3.5, p, minutes), volume: kg * reps * sets };
+}
+function addStrength(){
  const p = needProfile();
- const name = $('exName').value.trim(), kg = +$('exKg').value, reps = +$('exReps').value, sets = +$('exSets').value;
- if(!name || !reps || !sets) return;
- const res = await ask(`Estimate calories burned above resting for this strength exercise. Person: ${p.sex}, ${p.age} years, ${p.weight} kg. Exercise: ${name}, ${kg} kg dumbbell, ${reps} reps, ${sets} sets. Reply ONLY with JSON: an object with one key 'kcal' as a number.`);
- const d = load();
- d.push({ type: 'strength', label: `${name}: ${kg} kg x ${reps} reps x ${sets} sets`, kcal: num(res.kcal), volume: kg * reps * sets });
- save(d);
+ const name = $('exName').value.trim(), kg = num($('exKg').value), reps = num($('exReps').value), sets = num($('exSets').value);
+ if(!name || !reps || !sets) throw new Error('Enter the exercise, reps and sets');
+ addEntry(strengthEntry(p, name, kg, reps, sets));
+ ['exName', 'exKg', 'exReps', 'exSets'].forEach(id => { $(id).value = ''; });
+}
+// Reads an exercise from an entry, including entries logged by older versions
+function strengthOf(x){
+ if(x.name) return { name: String(x.name), kg: num(x.kg), reps: num(x.reps), sets: num(x.sets) };
+ const m = /^(.*): ([0-9.]+) kg x ([0-9]+) reps x ([0-9]+) sets$/.exec(x.label || '');
+ return m ? { name: m[1], kg: +m[2], reps: +m[3], sets: +m[4] } : null;
+}
+function strengthHistory(){
+ const by = {};
+ allDays().forEach(s => load(s).forEach(x => {
+  if(x.type !== 'strength') return;
+  const e = strengthOf(x);
+  if(!e) return;
+  const k = norm(e.name);
+  const g = by[k] || (by[k] = { name: e.name, days: [] });
+  g.name = e.name;
+  let day = g.days[g.days.length - 1];
+  if(!day || day.date !== s){ day = { date: s, top: 0, volume: 0, sets: [] }; g.days.push(day); }
+  day.top = Math.max(day.top, e.kg);
+  day.volume += e.kg * e.reps * e.sets;
+  day.sets.push(e.kg + ' kg x ' + e.reps + ' x ' + e.sets);
+ }));
+ return by;
+}
+function renderStrength(){
+ const by = strengthHistory(), keys = Object.keys(by).sort();
+ $('exList').innerHTML = keys.map(k => `<option value='${esc(by[k].name)}'>`).join('');
+ const sel = $('prEx'), key = keys.indexOf(sel.value) >= 0 ? sel.value : keys[0];
+ sel.innerHTML = keys.map(k => `<option value='${esc(k)}'>${esc(by[k].name)}</option>`).join('');
+ const g = key ? by[key] : null;
+ if(!g){ $('prInfo').textContent = 'Log a strength exercise to see your progress here.'; $('prList').innerHTML = ''; return; }
+ sel.value = key;
+ const first = g.days[0], last = g.days[g.days.length - 1], diff = last.top - first.top;
+ const best = Math.max.apply(null, g.days.map(x => x.top));
+ $('prInfo').textContent = 'Heaviest: ' + best + ' kg. ' + (g.days.length > 1
+  ? 'Started at ' + first.top + ' kg, now ' + last.top + ' kg (' + (diff >= 0 ? '+' : '') + fmt(diff) + ' kg).'
+  : 'Log it on another day to see a trend.');
+ $('prList').innerHTML = g.days.slice(-8).reverse().map(x =>
+  `<div class='day' onclick="goTo('${x.date}')">${dayName(x.date)}<div class='muted'>${esc(x.sets.join(', '))}. Volume ${R(x.volume)} kg</div></div>`).join('');
 }
 
-function addWater(ml){ const d = load(); d.push({ type: 'water', label: 'Water ' + ml + ' ml', ml: ml }); save(d); }
+// ---------- Water ----------
+function addWater(ml){ addEntry({ type: 'water', label: 'Water ' + ml + ' ml', ml: ml }); }
+
+// ---------- Editing and deleting ----------
 function del(i){ const d = load(); d.splice(i, 1); save(d); }
 function clearDay(){ if(confirm('Clear everything logged on ' + dayName(viewDate) + '?')){ localStorage.removeItem(keyFor(viewDate)); render(); } }
 
+let editIdx = -1;
+function openEdit(i){
+ const x = load()[i];
+ if(!x) return;
+ editIdx = i;
+ $('eTitle').textContent = 'Edit ' + ({ food: 'food', activity: 'activity', strength: 'exercise', water: 'water' }[x.type] || 'entry');
+ show('eMain', x.type === 'food' || x.type === 'activity');
+ show('eFood', x.type === 'food');
+ show('eStrength', x.type === 'strength');
+ show('eWater', x.type === 'water');
+ $('eLabel').value = x.label || '';
+ $('eKcal').value = R(num(x.kcal));
+ $('eP').value = R(num(x.protein)); $('eC').value = R(num(x.carbs)); $('eF').value = R(num(x.fat));
+ const s = x.type === 'strength' ? (strengthOf(x) || { name: x.label || '', kg: 0, reps: 0, sets: 0 }) : { name: '', kg: '', reps: '', sets: '' };
+ $('eName').value = s.name; $('eKg').value = s.kg; $('eReps').value = s.reps; $('eSets').value = s.sets;
+ $('eMl').value = num(x.ml) || '';
+ $('sheet').classList.add('open');
+}
+function closeEdit(){ editIdx = -1; $('sheet').classList.remove('open'); }
+function scaleEdit(f){ ['eKcal', 'eP', 'eC', 'eF'].forEach(id => { $(id).value = R(num($(id).value) * f); }); }
+function delEdit(){ const i = editIdx; closeEdit(); if(i >= 0) del(i); }
+function saveEdit(){
+ const d = load(), x = d[editIdx];
+ if(!x){ closeEdit(); return; }
+ if(x.type === 'water'){
+  x.ml = num($('eMl').value);
+  x.label = 'Water ' + x.ml + ' ml';
+ } else if(x.type === 'strength'){
+  const name = $('eName').value.trim(), kg = num($('eKg').value), reps = num($('eReps').value), sets = num($('eSets').value);
+  if(!name || !reps || !sets) throw new Error('Enter the exercise, reps and sets');
+  Object.assign(x, strengthEntry(needProfile(), name, kg, reps, sets));
+ } else {
+  x.label = $('eLabel').value.trim() || x.label;
+  x.kcal = num($('eKcal').value);
+  if(x.type === 'food'){
+   x.protein = num($('eP').value); x.carbs = num($('eC').value); x.fat = num($('eF').value);
+   x.edited = true;
+   // Remember the correction, so the same text gives these numbers next time
+   if(x.src && !x.photo){
+    const learned = getJSON('learned', {});
+    learned[norm(x.src)] = { label: x.label, kcal: x.kcal, protein: x.protein, carbs: x.carbs, fat: x.fat };
+    setJSON('learned', learned);
+   }
+  }
+ }
+ closeEdit();
+ save(d);
+}
+
+// ---------- Weight ----------
+function logWeight(){
+ const kg = num($('wtKg').value);
+ if(kg < 20 || kg > 400) throw new Error('Enter your weight in kg');
+ setWeight(viewDate, kg);
+ $('wtKg').value = '';
+ render();
+}
+function delWeight(s){ setWeight(s, 0); render(); }
+function weightChart(w){
+ if(w.length < 2) return '';
+ const dn = s => { const a = s.split('-').map(Number); return Date.UTC(a[0], a[1] - 1, a[2]) / 864e5; };
+ const x0 = dn(w[0].date), x1 = dn(w[w.length - 1].date), ks = w.map(x => x.kg);
+ const lo = Math.min.apply(null, ks), hi = Math.max.apply(null, ks);
+ const pts = w.map(x => (10 + 280 * (dn(x.date) - x0) / ((x1 - x0) || 1)).toFixed(1) + ',' + (70 - 60 * (x.kg - lo) / ((hi - lo) || 1)).toFixed(1)).join(' ');
+ return `<svg viewBox='0 0 300 80' style='width:100%;height:80px;margin-top:6px'><polyline points='${pts}' fill='none' stroke='var(--accent)' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>`;
+}
+function renderWeight(){
+ const w = getWeights().filter(x => x && isDate(x.date) && num(x.kg));
+ $('wtDay').textContent = 'Saves for: ' + dayName(viewDate);
+ if(!w.length){ $('wtInfo').textContent = 'No weight saved yet.'; $('wtChart').innerHTML = ''; $('wtList').innerHTML = ''; return; }
+ const first = w[0], last = w[w.length - 1], diff = last.kg - first.kg;
+ $('wtInfo').textContent = 'Latest: ' + fmt(last.kg) + ' kg. ' + (w.length > 1
+  ? (diff <= 0 ? 'Down ' : 'Up ') + fmt(Math.abs(diff)) + ' kg since ' + prettyDate(first.date) + '.'
+  : 'Save it again on another day to see a trend.');
+ $('wtChart').innerHTML = weightChart(w);
+ $('wtList').innerHTML = w.slice(-6).reverse().map(x =>
+  `<div class='day'><span class='del' onclick="delWeight('${x.date}')">x</span>${dayName(x.date)}: ${fmt(x.kg)} kg</div>`).join('');
+}
+
+// ---------- Backup, restore and spreadsheet ----------
+async function shareFile(name, text, type){
+ const file = new File([text], name, { type: type });
+ if(navigator.canShare && navigator.canShare({ files: [file] })){
+  try { await navigator.share({ files: [file] }); } catch(e) { if(e.name !== 'AbortError') throw e; }
+  return;
+ }
+ const a = document.createElement('a');
+ a.href = URL.createObjectURL(file); a.download = name;
+ document.body.appendChild(a); a.click(); a.remove();
+}
+function backupData(){
+ const days = {};
+ allDays().forEach(s => { days[s] = load(s); });
+ return { app: 'tracker', version: 1, exported: new Date().toISOString(), profile: getProfile(), weights: getWeights(), learned: getJSON('learned', {}), days: days };
+}
+function exportBackup(){ return shareFile('tracker-backup-' + todayStr() + '.json', JSON.stringify(backupData()), 'application/json'); }
+function exportCSV(){
+ const q = v => '"' + String(v == null ? '' : v).split('"').join('""') + '"';
+ const rows = [['Date', 'Type', 'Description', 'Calories', 'Protein g', 'Carbs g', 'Fat g', 'Water ml']];
+ allDays().forEach(s => load(s).forEach(x => {
+  const food = x.type === 'food';
+  rows.push([s, x.type, x.label, x.type === 'water' ? '' : R(num(x.kcal)), food ? R(num(x.protein)) : '', food ? R(num(x.carbs)) : '', food ? R(num(x.fat)) : '', x.type === 'water' ? num(x.ml) : '']);
+ }));
+ getWeights().forEach(w => rows.push([w.date, 'weight', fmt(num(w.kg)) + ' kg', '', '', '', '', '']));
+ return shareFile('tracker-log-' + todayStr() + '.csv', String.fromCharCode(0xFEFF) + rows.map(r => r.map(q).join(',')).join(String.fromCharCode(13, 10)), 'text/csv');
+}
+// Restoring only adds: entries already on this phone are kept as they are
+async function importBackup(input){
+ const f = input.files && input.files[0];
+ if(!f) return;
+ const text = await f.text();
+ input.value = '';
+ let b = null;
+ try { b = JSON.parse(text); } catch(e) {}
+ if(!b || b.app !== 'tracker' || !b.days || typeof b.days !== 'object') throw new Error('That file is not a Tracker backup');
+ const sig = x => x.id || JSON.stringify(x);
+ let added = 0;
+ Object.keys(b.days).forEach(s => {
+  if(!isDate(s) || !Array.isArray(b.days[s])) return;
+  const mine = load(s), seen = {};
+  mine.forEach(x => { seen[sig(x)] = true; });
+  b.days[s].forEach(x => {
+   if(!x || typeof x !== 'object' || !x.type || seen[sig(x)]) return;
+   mine.push(x); seen[sig(x)] = true; added++;
+  });
+  if(mine.length) setJSON(keyFor(s), mine);
+ });
+ const w = getWeights(), have = {};
+ w.forEach(x => { have[x.date] = true; });
+ (Array.isArray(b.weights) ? b.weights : []).forEach(x => {
+  if(x && isDate(x.date) && num(x.kg) && !have[x.date]){ w.push({ date: x.date, kg: num(x.kg) }); have[x.date] = true; }
+ });
+ setJSON('weights', w);
+ if(b.learned && typeof b.learned === 'object') setJSON('learned', Object.assign({}, b.learned, getJSON('learned', {})));
+ const bp = b.profile;
+ if(!getProfile() && bp && num(bp.age) && num(bp.height) && num(bp.weight)){
+  setJSON('profile', { sex: bp.sex === 'female' ? 'female' : 'male', age: num(bp.age), height: num(bp.height), weight: num(bp.weight) });
+ }
+ const sorted = getWeights();
+ if(sorted.length) setWeight(sorted[sorted.length - 1].date, sorted[sorted.length - 1].kg);
+ render();
+ alert(added ? 'Restored ' + added + ' entries.' : 'Nothing new in that backup. Everything was already here.');
+}
+
+// ---------- Settings ----------
 function saveSettings(){
  const k = $('sKey').value.trim();
- if(k) localStorage.setItem('apiKey', k);
- const p = { sex: $('sSex').value, age: +$('sAge').value, height: +$('sHeight').value, weight: +$('sWeight').value };
+ if(k) setPref('apiKey', k);
+ const p = { sex: $('sSex').value, age: num($('sAge').value), height: num($('sHeight').value), weight: num($('sWeight').value) };
  if(!p.age || !p.height || !p.weight){ alert('Please fill in age, height and weight'); return; }
  if(!getKey()){ alert('Please paste your API key'); return; }
- localStorage.setItem('profile', JSON.stringify(p));
+ setJSON('profile', p);
+ const w = getWeights();
+ if(!w.length || w[w.length - 1].kg !== p.weight) setWeight(todayStr(), p.weight);
  $('sKey').value = '';
  $('settings').open = false;
  render();
 }
 
-function renderWeek(bmr){
+// ---------- Drawing the screen ----------
+function renderWeek(p){
  const days = [];
  for(let i = 6; i >= 0; i--) days.push(shift(viewDate, -i));
  $('weekRange').textContent = prettyDate(days[0]) + ' to ' + prettyDate(days[6]);
- const all = days.map(s => ({ s, t: totals(load(s), bmr) }));
+ const all = days.map(s => ({ s: s, t: totals(load(s), p ? bmrOf(p, s) : 0) }));
  const logged = all.filter(x => x.t.count > 0);
  const n = logged.length;
  const avg = k => n ? logged.reduce((a, x) => a + x.t[k], 0) / n : 0;
- const show = (id, v, unit) => { $(id).textContent = n ? R(v) + (unit || '') : '-'; };
- show('wIn', avg('kin')); show('wOut', avg('out')); show('wNet', avg('net'));
- show('wP', avg('p'), ' g'); show('wC', avg('c'), ' g'); show('wF', avg('f'), ' g');
+ const put = (id, v, unit) => { $(id).textContent = n ? R(v) + (unit || '') : '-'; };
+ put('wIn', avg('kin')); put('wOut', avg('out')); put('wNet', avg('net'));
+ put('wP', avg('p'), ' g'); put('wC', avg('c'), ' g'); put('wF', avg('f'), ' g');
  const actTotal = all.reduce((a, x) => a + x.t.act, 0);
  const sessions = all.reduce((a, x) => a + x.t.sessions, 0);
  $('weekLine').textContent = n
-  ? `Activity: ${R(actTotal)} kcal over ${sessions} sessions. Water: ${R(avg('water'))} ml per day. Days logged: ${n} of 7.`
+  ? 'Activity: ' + R(actTotal) + ' kcal over ' + sessions + ' sessions. Water: ' + R(avg('water')) + ' ml per day. Days logged: ' + n + ' of 7.'
   : 'Nothing logged in these 7 days yet.';
  $('weekDays').innerHTML = all.slice().reverse().map(x => {
   const sel = x.s === viewDate ? 'font-weight:600' : '';
-  const body = x.t.count ? `In ${R(x.t.kin)}, activity ${R(x.t.act)}, net ${R(x.t.net)}` : 'No entries';
+  const body = x.t.count ? 'In ' + R(x.t.kin) + ', activity ' + R(x.t.act) + ', net ' + R(x.t.net) : 'No entries';
   return `<div class='day' style='${sel}' onclick="goTo('${x.s}')">${dayName(x.s)}<div class='muted'>${body}</div></div>`;
  }).join('');
 }
 
 function render(){
  const d = load(), p = getProfile();
- const bmr = p ? bmrOf(p) : 0;
+ const bmr = p ? bmrOf(p, viewDate) : 0;
  const t = totals(d, bmr);
- const isToday = viewDate === todayStr();
  $('dayTitle').textContent = dayName(viewDate);
- $('daySub').textContent = isToday ? 'v7' : 'Tap to go back to today';
+ $('daySub').textContent = viewDate === todayStr() ? VERSION : 'Tap to go back to today';
  $('logTitle').textContent = 'Log - ' + dayName(viewDate);
  $('tIn').textContent = R(t.kin);
  $('tOut').textContent = R(t.out);
@@ -381,20 +819,33 @@ function render(){
  $('tP').textContent = R(t.p) + ' g';
  $('tC').textContent = R(t.c) + ' g';
  $('tF').textContent = R(t.f) + ' g';
- $('bmrLine').textContent = p ? `Burned = BMR ${bmr} + activity ${R(t.act)}` : 'Open Settings to enter your profile';
- $('waterLine').textContent = `Water: ${t.water} ml`;
+ $('bmrLine').textContent = p ? 'Burned = BMR ' + bmr + ' + activity ' + R(t.act) : 'Open Settings to enter your profile';
+ $('waterLine').textContent = 'Water: ' + R(t.water) + ' ml';
  $('log').innerHTML = d.map((x, i) => {
-  const kcal = x.kcal !== undefined ? ' - ' + R(num(x.kcal)) + ' kcal' : '';
-  const macros = (x.type === 'food' && x.protein !== undefined) ? `<div class='muted'>P ${R(x.protein)} g, C ${R(x.carbs)} g, F ${R(x.fat)} g${x.web ? ', from web' : ''}</div>` : '';
-  return `<div class='item'>${esc(x.label)}${kcal}<span class='del' onclick='del(${i})'>x</span>${macros}</div>`;
- }).join('') || `<div class='muted'>Nothing logged on this day.</div>`;
- renderWeek(bmr);
+  const kcal = x.type === 'water' ? '' : ' - ' + R(num(x.kcal)) + ' kcal';
+  let sub = '';
+  if(x.type === 'food'){
+   const tags = [];
+   if(num(x.protein) || num(x.carbs) || num(x.fat)) tags.push('P ' + R(num(x.protein)) + ' g, C ' + R(num(x.carbs)) + ' g, F ' + R(num(x.fat)) + ' g');
+   if(x.web) tags.push('from web');
+   if(x.photo) tags.push('from photo');
+   if(x.manual) tags.push('entered by you');
+   if(x.saved) tags.push('your saved numbers');
+   if(x.edited) tags.push('edited');
+   if(tags.length) sub = `<div class='muted'>${tags.join(', ')}</div>`;
+  }
+  return `<div class='item' onclick='openEdit(${i})'><span class='del' onclick='event.stopPropagation(); del(${i})'>x</span>${esc(x.label)}${kcal}${sub}</div>`;
+ }).join('') || `<div class='muted' style='margin-top:6px'>Nothing logged on this day.</div>`;
+ renderWeek(p);
+ renderWeight();
+ renderStrength();
  $('sTheme').value = getTheme();
  $('sModel').value = getModel();
  $('sWeb').checked = webOn();
  if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; }
  if(!p || !getKey()) $('settings').open = true;
 }
+closeEdit();
 render();
 </script>
 </body>
