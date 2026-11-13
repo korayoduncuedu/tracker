@@ -70,6 +70,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  <button class='sec' style='flex:0 0 52px' onclick='go(1)'>&rsaquo;</button>
 </div>
 
+<div id='syncNote' class='muted' style='display:none;color:var(--bad);margin-bottom:10px' onclick='showTab("settings")'></div>
 <div class='card'>
  <div class='row'>
   <div><div class='muted'>In</div><div class='big' id='tIn'>0</div></div>
@@ -272,6 +273,23 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 </div>
 
 <div class='card'>
+ <h2>Sync between devices</h2>
+ <div id='syOff'>
+  <div class='muted'>GitHub token (only the gist box ticked)</div>
+  <input id='syTok' type='password' autocomplete='off'>
+  <div class='muted' style='margin-top:8px'>Sync passphrase</div>
+  <input id='syPass' type='text' autocomplete='off' autocapitalize='off' spellcheck='false'>
+  <button onclick='run(enableSync)'>Turn on sync</button>
+  <div class='muted'>Use the same token and passphrase on each of your devices. Your data is locked with the passphrase before it leaves this phone. If you forget it, the synced copy cannot be opened.</div>
+ </div>
+ <div id='syOnBox'>
+  <div class='muted' id='syStatus'></div>
+  <button class='sec' onclick='run(syncByHand)'>Sync now</button>
+  <button class='sec' onclick='disableSync()'>Turn off sync on this phone</button>
+ </div>
+</div>
+
+<div class='card'>
  <h2>App</h2>
  <div class='muted'>Appearance</div>
  <select id='sTheme' onchange='setTheme(this.value)'>
@@ -338,7 +356,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div id='status' class='toast' style='display:none'>Working...</div>
 
 <script>
-const VERSION = 'v10';
+const VERSION = 'v11';
 const API = 'https://api.anthropic.com/v1/messages';
 const NL = String.fromCharCode(10);
 const $ = id => document.getElementById(id);
@@ -377,7 +395,8 @@ let lastToday = viewDate;
 function go(n){ viewDate = n === 0 ? todayStr() : shift(viewDate, n); if(viewDate > todayStr()) viewDate = todayStr(); render(); window.scrollTo(0, 0); }
 function goTo(s){ viewDate = s; if(curTab !== 'log') showTab('log'); render(); window.scrollTo(0, 0); }
 document.addEventListener('visibilitychange', () => {
- if(document.visibilityState !== 'visible') return;
+ if(document.visibilityState !== 'visible'){ if(syncTimer) autoSync(); return; }
+ autoSync();
  const t = todayStr();
  if(t !== lastToday){ if(viewDate === lastToday) viewDate = t; lastToday = t; render(); }
 });
@@ -399,18 +418,20 @@ function bmrOf(p, s){ return Math.round(10*weightOn(s, p) + 6.25*p.height - 5*p.
 function burnAboveRest(met, p, minutes, s){ if(!p) return 0; s = s || viewDate; const h = minutes/60; return Math.max(0, met*weightOn(s, p)*h - bmrOf(p, s)/24*h); }
 function setWeight(s, kg){
  const w = getWeights().filter(x => x.date !== s);
- if(kg) w.push({ date: s, kg: kg });
+ if(kg) w.push({ date: s, kg: kg, t: Date.now() });
+ else markDeleted(['w:' + s]);
  w.sort((a, b) => a.date < b.date ? -1 : 1);
  setJSON('weights', w);
  const p = getProfile();
  if(p && w.length){ p.weight = w[w.length - 1].kg; setJSON('profile', p); }
+ scheduleSync();
 }
 
 // ---------- Daily log ----------
 const keyFor = s => 'log-' + s;
 function load(s){ const d = getJSON(keyFor(s || viewDate), []); return Array.isArray(d) ? d : []; }
-function save(d){ setJSON(keyFor(viewDate), d); render(); }
-function addEntry(e){ const d = load(); d.push(Object.assign({ id: newId() }, e)); save(d); }
+function save(d){ setJSON(keyFor(viewDate), d); render(); scheduleSync(); }
+function addEntry(e){ const d = load(); d.push(Object.assign({ id: newId(), t: Date.now() }, e)); save(d); }
 function allDays(){
  const out = [];
  for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf('log-') === 0 && isDate(k.slice(4))) out.push(k.slice(4)); }
@@ -703,8 +724,8 @@ function renderStrength(){
 function addWater(ml){ addEntry({ type: 'water', label: 'Water ' + ml + ' ml', ml: ml }); }
 
 // ---------- Editing and deleting ----------
-function del(i){ const d = load(); d.splice(i, 1); save(d); }
-function clearDay(){ if(confirm('Clear everything logged on ' + dayName(viewDate) + '?')){ localStorage.removeItem(keyFor(viewDate)); render(); } }
+function del(i){ const d = load(); if(d[i]) markDeleted([d[i].id]); d.splice(i, 1); save(d); }
+function clearDay(){ if(confirm('Clear everything logged on ' + dayName(viewDate) + '?')){ markDeleted(load().map(x => x.id)); localStorage.removeItem(keyFor(viewDate)); render(); scheduleSync(); } }
 
 let editIdx = -1;
 function openEdit(i){
@@ -751,6 +772,7 @@ function saveEdit(){
    }
   }
  }
+ x.t = Date.now();
  closeEdit();
  save(d);
 }
@@ -828,6 +850,7 @@ function restoreBackup(b){
  const sorted = getWeights();
  if(sorted.length) setWeight(sorted[sorted.length - 1].date, sorted[sorted.length - 1].kg);
  render();
+ scheduleSync();
  alert(added ? 'Restored ' + added + ' entries.' : 'Nothing new in that backup. Everything was already here.');
 }
 
@@ -1184,6 +1207,7 @@ async function importFile(input){
  if(!confirm('Found ' + found.join(', ') + ', from ' + fullDate(got.first) + ' to ' + fullDate(got.last) + '. Add them to this phone?')) return;
  const added = mergeLog(got);
  render();
+ scheduleSync();
  alert(added ? 'Added ' + added + ' entries.' : 'Nothing new. Everything in that file was already here.');
 }
 
@@ -1435,6 +1459,231 @@ function renderGraphs(){
  drawGraph('gex', pts, Object.assign({}, xm, { r: r, title: 'Strength', dir: 1, hero: pts.length ? [gval(best, xm), xk === 'top' ? 'heaviest' : 'volume per session'] : none }));
 }
 
+// ---------- Sync between devices (GitHub gist, encrypted on this phone) ----------
+const SYNC_FILE = 'tracker-sync.json';
+const syncOn = () => !!(pref('syncToken', '') && pref('syncPass', ''));
+function syncFail(msg, kind){ const e = new Error(msg); e.kind = kind || 'other'; return e; }
+
+// Remembers deleted entries, so a deletion on one phone also happens on the other
+function markDeleted(ids){
+ const d = getJSON('deleted', {}), t = Date.now();
+ ids.forEach(id => { if(id) d[id] = t; });
+ setJSON('deleted', d);
+}
+// Entries saved by versions before v8 have no id. They get one made from their content, the same on every phone.
+function hashOf(s){ let h = 5381; for(let i = 0; i < s.length; i++) h = (h * 33 + s.charCodeAt(i)) >>> 0; return h.toString(36); }
+function giveIds(){
+ allDays().forEach(s => {
+  const d = load(s), seen = {};
+  let changed = false;
+  d.forEach(x => {
+   if(x && !x.id){
+    let id = 'h' + hashOf(s + JSON.stringify(x));
+    while(seen[id]) id += 'x';
+    x.id = id; changed = true;
+   }
+   if(x) seen[x.id] = true;
+  });
+  if(changed) setJSON(keyFor(s), d);
+ });
+}
+
+// Everything that syncs. The API key, GitHub token, theme and AI settings stay on each phone.
+function localData(){
+ const days = {};
+ allDays().forEach(s => { const d = load(s); if(d.length) days[s] = d; });
+ return { app: 'tracker', sync: 1, profile: getProfile(), profileAt: +pref('profileAt', '0') || 0, weights: getWeights(), learned: getJSON('learned', {}), deleted: getJSON('deleted', {}), days: days };
+}
+// Combines two copies. For the same entry the newer edit wins, and deletions win over older edits.
+function mergeData(a, b){
+ const del = Object.assign({}, a.deleted || {});
+ Object.keys(b.deleted || {}).forEach(k => { del[k] = Math.max(del[k] || 0, b.deleted[k]); });
+ const days = {}, ad = a.days || {}, bd = b.days || {};
+ Object.keys(ad).concat(Object.keys(bd)).forEach(s => {
+  if(days[s] || !isDate(s)) return;
+  const out = [], at = {};
+  [ad[s] || [], bd[s] || []].forEach(list => (Array.isArray(list) ? list : []).forEach(e => {
+   if(!e || typeof e !== 'object' || !e.id || !e.type) return;
+   if(at[e.id] === undefined){ at[e.id] = out.length; out.push(e); }
+   else if((e.t || 0) > (out[at[e.id]].t || 0)) out[at[e.id]] = e;
+  }));
+  const keep = out.filter(e => !(del[e.id] && del[e.id] >= (e.t || 0)));
+  if(keep.length) days[s] = keep;
+ });
+ const w = {};
+ (a.weights || []).concat(b.weights || []).forEach(x => {
+  if(!x || !isDate(x.date) || !num(x.kg)) return;
+  if(!w[x.date] || (x.t || 0) > (w[x.date].t || 0)) w[x.date] = x;
+ });
+ const weights = Object.keys(w).sort().map(s => w[s]).filter(x => !(del['w:' + x.date] && del['w:' + x.date] >= (x.t || 0)));
+ const useB = !a.profile || (b.profile && (b.profileAt || 0) > (a.profileAt || 0));
+ return { app: 'tracker', sync: 1, profile: (useB ? b.profile : a.profile) || null, profileAt: useB ? b.profileAt || 0 : a.profileAt || 0,
+  weights: weights, learned: Object.assign({}, b.learned || {}, a.learned || {}), deleted: del, days: days };
+}
+// The same data always gives the same text, so the app can tell whether anything changed
+function canon(x){
+ const sorted = o => { const r = {}; Object.keys(o || {}).sort().forEach(k => { r[k] = o[k]; }); return r; };
+ const days = {};
+ Object.keys(x.days || {}).sort().forEach(s => { days[s] = x.days[s].slice().sort((p, q) => p.id < q.id ? -1 : p.id > q.id ? 1 : 0); });
+ return JSON.stringify([x.profile || null, x.profileAt || 0, (x.weights || []).slice().sort((p, q) => p.date < q.date ? -1 : 1), sorted(x.learned), sorted(x.deleted), days]);
+}
+function applyLocal(m){
+ allDays().forEach(s => { if(!m.days[s]) localStorage.removeItem(keyFor(s)); });
+ Object.keys(m.days).forEach(s => setJSON(keyFor(s), m.days[s]));
+ setJSON('weights', m.weights);
+ setJSON('learned', m.learned);
+ setJSON('deleted', m.deleted);
+ if(m.profile){
+  const p = Object.assign({}, m.profile);
+  if(m.weights.length) p.weight = m.weights[m.weights.length - 1].kg;
+  setJSON('profile', p);
+  setPref('profileAt', String(m.profileAt || 0));
+ }
+}
+
+// --- Encryption: AES-GCM with a key made from the passphrase (PBKDF2, 250,000 rounds) ---
+const toB64 = u => { let s = ''; for(let i = 0; i < u.length; i += 8192) s += String.fromCharCode.apply(null, u.subarray(i, i + 8192)); return btoa(s); };
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+let keyCache = null;
+async function passKey(pass, salt){
+ const tag = pass + '|' + salt;
+ if(keyCache && keyCache.tag === tag) return keyCache.key;
+ const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+ const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: fromB64(salt), iterations: 250000, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+ keyCache = { tag: tag, key: key };
+ return key;
+}
+async function seal(data, pass, salt){
+ salt = salt || toB64(crypto.getRandomValues(new Uint8Array(16)));
+ const iv = crypto.getRandomValues(new Uint8Array(12));
+ const box = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, await passKey(pass, salt), new TextEncoder().encode(JSON.stringify(data)));
+ return JSON.stringify({ app: 'tracker-sync', v: 1, salt: salt, iv: toB64(iv), data: toB64(new Uint8Array(box)), saved: new Date().toISOString() });
+}
+async function unseal(text, pass){
+ let s = null;
+ try { s = JSON.parse(text); } catch(e) {}
+ if(!s || s.app !== 'tracker-sync' || !s.salt || !s.iv || !s.data) throw syncFail('The synced copy on GitHub is damaged.');
+ let plain;
+ try { plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(s.iv) }, await passKey(pass, s.salt), fromB64(s.data)); }
+ catch(e){ throw syncFail('That passphrase does not match the one used on your other device.', 'pass'); }
+ return { data: JSON.parse(new TextDecoder().decode(plain)), salt: s.salt };
+}
+
+// --- GitHub ---
+async function gh(path, method, body){
+ let r;
+ try {
+  r = await fetch('https://api.github.com' + path, { method: method || 'GET', cache: 'no-store', headers: Object.assign({
+   'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + pref('syncToken', ''), 'X-GitHub-Api-Version': '2022-11-28'
+  }, body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+ } catch(e) { throw syncFail('No internet connection. The app will sync later.', 'net'); }
+ if(r.status === 401) throw syncFail('GitHub did not accept your token. It may have expired. Paste a new one in Settings.', 'token');
+ if(r.status === 403 || r.status === 429) throw syncFail(r.headers.get('x-ratelimit-remaining') === '0' ? 'GitHub is busy. The app will try again later.' : 'Your GitHub token cannot use gists. Make a token with the gist box ticked.', 'token');
+ if(r.status === 404) return null;
+ if(!r.ok) throw syncFail('GitHub had a problem (' + r.status + '). The app will try again later.', 'net');
+ return r.json();
+}
+async function gistText(g){
+ const f = g && g.files && g.files[SYNC_FILE];
+ if(!f) return null;
+ if(!f.truncated && typeof f.content === 'string') return f.content;
+ try { return await (await fetch(f.raw_url, { cache: 'no-store' })).text(); }
+ catch(e) { throw syncFail('No internet connection. The app will sync later.', 'net'); }
+}
+// Finds the sync gist on this GitHub account, or returns null if there is none yet
+async function findGist(){
+ const known = pref('syncGist', '');
+ if(known){
+  const g = await gh('/gists/' + known);
+  if(g && g.files && g.files[SYNC_FILE]) return g;
+ }
+ for(let page = 1; page <= 10; page++){
+  const list = await gh('/gists?per_page=100&page=' + page);
+  if(!Array.isArray(list)) break;
+  const hit = list.find(x => x.files && x.files[SYNC_FILE]);
+  if(hit){ setPref('syncGist', hit.id); return gh('/gists/' + hit.id); }
+  if(list.length < 100) break;
+ }
+ return null;
+}
+
+// --- Running a sync ---
+let syncing = null, syncAgain = false, syncTimer = null, syncBusy = false;
+async function doSync(){
+ const pass = pref('syncPass', '');
+ const g = await findGist();
+ const text = g ? await gistText(g) : null;
+ const remote = text ? await unseal(text, pass) : null;
+ // Merge with what is on the phone right now, so nothing logged during the sync is lost
+ const merged = mergeData(localData(), remote ? remote.data : {});
+ if(canon(merged) !== canon(localData())){ applyLocal(merged); render(); }
+ if(!remote || canon(merged) !== canon(remote.data)){
+  const content = await seal(merged, pass, remote && remote.salt);
+  const files = {};
+  files[SYNC_FILE] = { content: content };
+  if(g && g.id) await gh('/gists/' + g.id, 'PATCH', { files: files });
+  else {
+   const made = await gh('/gists', 'POST', { description: 'Tracker app sync (encrypted)', public: false, files: files });
+   if(!made || !made.id) throw syncFail('Could not create the sync file on GitHub.');
+   setPref('syncGist', made.id);
+  }
+ }
+ setPref('syncAt', String(Date.now()));
+ setPref('syncErr', '');
+}
+// Runs one sync at a time. A change made during a sync runs another one after it.
+function syncNow(){
+ if(!syncOn()) return Promise.resolve();
+ if(syncing){ syncAgain = true; return syncing; }
+ clearTimeout(syncTimer);
+ syncBusy = true; renderSync();
+ syncing = doSync().finally(() => {
+  syncing = null; syncBusy = false; renderSync();
+  if(syncAgain){ syncAgain = false; autoSync(); }
+ });
+ return syncing;
+}
+function autoSync(){
+ if(!syncOn()) return;
+ syncNow().catch(e => { setPref('syncErr', e.kind === 'net' ? '' : e.message); renderSync(); });
+}
+function scheduleSync(){ if(!syncOn()) return; clearTimeout(syncTimer); syncTimer = setTimeout(autoSync, 3000); }
+
+async function enableSync(){
+ const tok = $('syTok').value.trim(), pass = $('syPass').value;
+ if(!tok) throw new Error('Paste your GitHub token');
+ if(pass.length < 6) throw new Error('Choose a passphrase of at least 6 characters');
+ setPref('syncToken', tok); setPref('syncPass', pass); setPref('syncGist', ''); setPref('syncErr', '');
+ try { await syncNow(); }
+ catch(e){ ['syncToken', 'syncPass', 'syncGist'].forEach(k => localStorage.removeItem(k)); renderSync(); throw e; }
+ $('syTok').value = ''; $('syPass').value = '';
+ renderSync();
+ alert('Sync is on. Use the same token and passphrase on your other devices.');
+}
+function disableSync(){
+ if(!confirm('Turn off sync on this phone? Your data stays here and on GitHub.')) return;
+ ['syncToken', 'syncPass', 'syncGist', 'syncAt', 'syncErr'].forEach(k => localStorage.removeItem(k));
+ renderSync();
+}
+async function syncByHand(){
+ try { await syncNow(); }
+ catch(e){ setPref('syncErr', e.message); renderSync(); throw e; }
+}
+function syncTime(){
+ const t = +pref('syncAt', '0');
+ if(!t) return 'Not synced yet.';
+ const d = new Date(t), time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+ return 'Last synced ' + (dateStr(d) === todayStr() ? 'today' : prettyDate(dateStr(d))) + ' at ' + time + '.';
+}
+function renderSync(){
+ const on = syncOn(), err = pref('syncErr', '');
+ show('syOff', !on); show('syOnBox', on);
+ $('syStatus').textContent = !on ? '' : syncBusy ? 'Syncing...' : err || syncTime();
+ $('syStatus').style.color = on && err && !syncBusy ? 'var(--bad)' : '';
+ $('syncNote').textContent = on && err ? 'Sync problem: ' + err : '';
+ show('syncNote', !!(on && err));
+}
+
 // ---------- Settings ----------
 function saveSettings(){
  const k = $('sKey').value.trim();
@@ -1443,6 +1692,8 @@ function saveSettings(){
  if(!p.age || !p.height || !p.weight){ alert('Please fill in age, height and weight'); return; }
  if(!getKey()){ alert('Please paste your API key'); return; }
  setJSON('profile', p);
+ setPref('profileAt', String(Date.now()));
+ scheduleSync();
  const w = getWeights();
  if(!w.length || w[w.length - 1].kg !== p.weight) setWeight(todayStr(), p.weight);
  $('sKey').value = '';
@@ -1512,11 +1763,14 @@ function render(){
  $('sWeb').checked = webOn();
  if(p){ $('sSex').value = p.sex; $('sAge').value = p.age; $('sHeight').value = p.height; $('sWeight').value = p.weight; $('sGoal').value = num(p.goal) || ''; }
  $('sKey').placeholder = getKey() ? 'Saved. Paste a new key to change it.' : 'Paste your key. It stays on this phone.';
+ renderSync();
  if(curTab === 'graphs') renderGraphs();
 }
+giveIds();
 closeEdit();
 render();
 showTab(getProfile() && getKey() ? 'log' : 'settings');
+autoSync();
 </script>
 </body>
 </html>
