@@ -153,9 +153,11 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div class='card'>
  <h2>Weight</h2>
  <div class='row'>
-  <input id='wtKg' type='number' step='0.1' inputmode='decimal' placeholder='Weight in kg'>
-  <button style='flex:0 0 110px' onclick='run(logWeight)'>Save</button>
+  <input id='wtKg' type='number' step='0.1' inputmode='decimal' placeholder='Weight kg'>
+  <input id='wtFat' type='number' step='0.1' inputmode='decimal' placeholder='Body fat %'>
  </div>
+ <div class='muted'>Body fat is optional. The Xiaomi scale shortcut fills both in for you.</div>
+ <button onclick='run(logWeight)'>Save</button>
  <div class='muted' id='wtInfo' style='margin-top:6px'></div>
  <details class='inner'>
   <summary>Earlier weigh-ins</summary>
@@ -214,7 +216,10 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 </div>
 
 <div class='card'>
- <h2>Weight</h2>
+ <h2>Body</h2>
+ <select id='gWtM' style='margin:0 0 10px' onchange='setPref("gWtM", this.value); renderGraphs()'>
+  <option value='kg'>Weight</option><option value='fat'>Body fat %</option><option value='fatkg'>Fat mass</option><option value='lean'>Lean mass</option><option value='bmi'>BMI</option>
+ </select>
  <div id='gwt'></div>
 </div>
 
@@ -285,6 +290,12 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
  <div id='syOnBox'>
   <div class='muted' id='syStatus'></div>
   <button class='sec' onclick='run(syncByHand)'>Sync now</button>
+  <details class='inner'>
+   <summary>Xiaomi scale shortcut</summary>
+   <div class='muted'>The shortcut needs this sync code and your GitHub token. The steps are in the build guide.</div>
+   <input id='syGist' readonly onclick='this.select()'>
+   <button class='sec' onclick='run(copyGist)'>Copy sync code</button>
+  </details>
   <button class='sec' onclick='disableSync()'>Turn off sync on this phone</button>
  </div>
 </div>
@@ -356,7 +367,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div id='status' class='toast' style='display:none'>Working...</div>
 
 <script>
-const VERSION = 'v11';
+const VERSION = 'v12';
 const API = 'https://api.anthropic.com/v1/messages';
 const NL = String.fromCharCode(10);
 const $ = id => document.getElementById(id);
@@ -416,9 +427,11 @@ function weightOn(s, p){
 function bmrOf(p, s){ return Math.round(10*weightOn(s, p) + 6.25*p.height - 5*p.age + (p.sex === 'male' ? 5 : -161)); }
 // Calories above resting: BMR is already counted in the daily total, so it is subtracted here
 function burnAboveRest(met, p, minutes, s){ if(!p) return 0; s = s || viewDate; const h = minutes/60; return Math.max(0, met*weightOn(s, p)*h - bmrOf(p, s)/24*h); }
-function setWeight(s, kg){
- const w = getWeights().filter(x => x.date !== s);
- if(kg) w.push({ date: s, kg: kg, t: Date.now() });
+// fat: body fat %. Left out, the day keeps the body fat it already had.
+function setWeight(s, kg, fat){
+ const old = getWeights().find(x => x.date === s), w = getWeights().filter(x => x.date !== s);
+ if(fat === undefined) fat = old ? num(old.fat) : 0;
+ if(kg){ const e = { date: s, kg: kg, t: Date.now() }; if(fat) e.fat = fat; w.push(e); }
  else markDeleted(['w:' + s]);
  w.sort((a, b) => a.date < b.date ? -1 : 1);
  setJSON('weights', w);
@@ -779,19 +792,21 @@ function saveEdit(){
 
 // ---------- Weight ----------
 function logWeight(){
- const kg = num($('wtKg').value);
+ const kg = num($('wtKg').value), fat = num($('wtFat').value);
  if(kg < 20 || kg > 400) throw new Error('Enter your weight in kg');
- setWeight(viewDate, kg);
- $('wtKg').value = '';
+ if($('wtFat').value.trim() && (fat < 2 || fat > 75)) throw new Error('Enter body fat as a percentage, like 24.5');
+ setWeight(viewDate, kg, fat || undefined);
+ $('wtKg').value = ''; $('wtFat').value = '';
  render();
 }
 function delWeight(s){ setWeight(s, 0); render(); }
 const kg2 = v => +num(v).toFixed(2);
+const bodyLine = x => kg2(x.kg) + ' kg' + (num(x.fat) ? ', ' + fmt(num(x.fat)) + '% fat' : '');
 function renderWeight(){
  const w = getWeights().filter(x => x && isDate(x.date) && num(x.kg)), last = w[w.length - 1];
- $('wtInfo').textContent = 'Saves for: ' + dayName(viewDate) + '. ' + (last ? 'Latest: ' + kg2(last.kg) + ' kg on ' + prettyDate(last.date) + '.' : 'No weight saved yet.');
+ $('wtInfo').textContent = 'Saves for: ' + dayName(viewDate) + '. ' + (last ? 'Latest: ' + bodyLine(last) + ' on ' + prettyDate(last.date) + '.' : 'No weight saved yet.');
  $('wtList').innerHTML = w.slice(-10).reverse().map(x =>
-  `<div class='day'><span class='del' onclick="delWeight('${x.date}')">x</span>${dayName(x.date)}: ${kg2(x.kg)} kg</div>`).join('') || `<div class='muted'>None yet.</div>`;
+  `<div class='day'><span class='del' onclick="delWeight('${x.date}')">x</span>${dayName(x.date)}: ${bodyLine(x)}${x.scale ? " <span class='muted'>(scale)</span>" : ''}</div>`).join('') || `<div class='muted'>None yet.</div>`;
 }
 
 // ---------- Backup, restore and spreadsheet ----------
@@ -818,7 +833,7 @@ function exportCSV(){
   const food = x.type === 'food';
   rows.push([s, x.type, x.label, x.type === 'water' ? '' : R(num(x.kcal)), food ? R(num(x.protein)) : '', food ? R(num(x.carbs)) : '', food ? R(num(x.fat)) : '', x.type === 'water' ? num(x.ml) : '']);
  }));
- getWeights().forEach(w => rows.push([w.date, 'weight', fmt(num(w.kg)) + ' kg', '', '', '', '', '']));
+ getWeights().forEach(w => rows.push([w.date, 'weight', bodyLine(w), '', '', '', '', '']));
  return shareFile('tracker-log-' + todayStr() + '.csv', String.fromCharCode(0xFEFF) + rows.map(r => r.map(q).join(',')).join(String.fromCharCode(13, 10)), 'text/csv');
 }
 // Restoring a backup only adds: entries already on this phone are kept as they are
@@ -839,7 +854,7 @@ function restoreBackup(b){
  const w = getWeights(), have = {};
  w.forEach(x => { have[x.date] = true; });
  (Array.isArray(b.weights) ? b.weights : []).forEach(x => {
-  if(x && isDate(x.date) && num(x.kg) && !have[x.date]){ w.push({ date: x.date, kg: num(x.kg) }); have[x.date] = true; }
+  if(x && isDate(x.date) && num(x.kg) && !have[x.date]){ const e = { date: x.date, kg: num(x.kg) }; if(num(x.fat)) e.fat = num(x.fat); w.push(e); have[x.date] = true; }
  });
  setJSON('weights', w);
  if(b.learned && typeof b.learned === 'object') setJSON('learned', Object.assign({}, b.learned, getJSON('learned', {})));
@@ -1234,12 +1249,19 @@ const CAL = {
  net: { unit: 'kcal', dec: 0, eps: 25, dir: 0, v: st => st.kin - st.bmr - st.act },
  protein: { unit: 'g', dec: 0, eps: 2, dir: 1, v: st => st.protein }
 };
+const BODY = {
+ kg: { unit: 'kg', dec: 1, eps: 0.1, dir: 0, v: x => num(x.kg) },
+ fat: { unit: '%', dec: 1, eps: 0.2, dir: -1, fat: true, v: x => num(x.fat) },
+ fatkg: { unit: 'kg', dec: 1, eps: 0.2, dir: -1, fat: true, v: x => num(x.fat) ? num(x.kg) * num(x.fat) / 100 : 0 },
+ lean: { unit: 'kg', dec: 1, eps: 0.2, dir: 1, fat: true, v: x => num(x.fat) ? num(x.kg) * (1 - num(x.fat) / 100) : 0 },
+ bmi: { unit: '', dec: 1, eps: 0.1, dir: 0, v: (x, p) => p && num(p.height) ? num(x.kg) / Math.pow(num(p.height) / 100, 2) : 0 }
+};
 const ACT = { min: { unit: 'min', dec: 0, eps: 1 }, km: { unit: 'km', dec: 1, eps: 0.1 }, kcal: { unit: 'kcal', dec: 0, eps: 5 } };
 const dayNum = s => { const a = s.split('-').map(Number); return Math.round(Date.UTC(a[0], a[1] - 1, a[2]) / 864e5); };
 const localDate = (s, how) => { const a = s.split('-').map(Number); return new Date(a[0], a[1] - 1, a[2]).toLocaleDateString('en-GB', how); };
 const shortDate = s => localDate(s, { day: 'numeric', month: 'short' });
 const fullDate = s => localDate(s, { day: 'numeric', month: 'short', year: 'numeric' });
-const gval = (v, m) => (+v.toFixed(m.dec)) + ' ' + m.unit;
+const gval = (v, m) => ((+v.toFixed(m.dec)) + ' ' + m.unit).trim();
 
 function setPeriod(p){ setPref('gPeriod', p); gOffset = 0; renderGraphs(); }
 function stepPeriod(n){ gOffset = Math.min(0, gOffset + n); renderGraphs(); }
@@ -1431,14 +1453,17 @@ function renderGraphs(){
  let pts = graphPoints(r, s => { const st = stat(s); return st.food ? cm.v(st) : null; }, 'avg');
  drawGraph('gcal', pts, Object.assign({}, cm, { r: r, title: 'Calories', dir: cm.dir || goal, hero: pts.length ? [gval(total(pts) / days(pts), cm), 'a day on average'] : none }));
 
- // Weight
- const wm = { unit: 'kg', dec: 1, eps: 0.1 }, kgOn = {}, all = getWeights().filter(x => x && isDate(x.date) && num(x.kg));
+ // Body: weight, body fat and what follows from them
+ const bk = BODY[pref('gWtM', 'kg')] ? pref('gWtM', 'kg') : 'kg', bm = BODY[bk], vOn = {}, all = getWeights().filter(x => x && isDate(x.date) && num(x.kg));
+ $('gWtM').value = bk;
  let latest = null;
- all.forEach(x => { kgOn[x.date] = num(x.kg); if(x.date >= r.from && x.date <= r.to) latest = x; });
- pts = graphPoints(r, s => kgOn[s] || null, 'avg');
+ all.forEach(x => { const v = bm.v(x, p); if(v){ vOn[x.date] = v; if(x.date >= r.from && x.date <= r.to) latest = { date: x.date, v: v }; } });
+ pts = graphPoints(r, s => vOn[s] || null, 'avg');
  const now = all.length ? num(all[all.length - 1].kg) : 0, target = p ? num(p.goal) : 0;
- const note = !target || !now ? '' : Math.abs(now - target) < 0.05 ? 'Goal reached: ' + fmt(target) + ' kg.' : 'Goal: ' + fmt(target) + ' kg, ' + fmt(Math.abs(now - target)) + ' kg to go.';
- drawGraph('gwt', pts, Object.assign({}, wm, { r: r, title: 'Weight', dir: goal, note: note, hero: latest ? [kg2(latest.kg) + ' kg', prettyDate(latest.date)] : none }));
+ let note = bk !== 'kg' ? '' : !target || !now ? '' : Math.abs(now - target) < 0.05 ? 'Goal reached: ' + fmt(target) + ' kg.' : 'Goal: ' + fmt(target) + ' kg, ' + fmt(Math.abs(now - target)) + ' kg to go.';
+ if(bm.fat && !all.some(x => num(x.fat))) note = 'No body fat saved yet. It comes from the Xiaomi scale, or you can type it next to your weight.';
+ if(bk === 'bmi' && !(p && num(p.height))) note = 'Add your height in Settings to see BMI.';
+ drawGraph('gwt', pts, Object.assign({}, bm, { r: r, title: 'Body', dir: bm.dir || goal, note: note, hero: latest ? [bk === 'kg' ? kg2(latest.v) + ' kg' : gval(latest.v, bm), prettyDate(latest.date)] : none }));
 
  // Cardio: a day without any counts as zero
  const names = activityNames(), ak = names[pref('gAct', '')] ? pref('gAct', '') : '', mk = ACT[pref('gActM', 'min')] ? pref('gActM', 'min') : 'min', am = ACT[mk];
@@ -1460,7 +1485,7 @@ function renderGraphs(){
 }
 
 // ---------- Sync between devices (GitHub gist, encrypted on this phone) ----------
-const SYNC_FILE = 'tracker-sync.json';
+const SYNC_FILE = 'tracker-sync.json', INBOX_FILE = 'tracker-inbox.json';
 const syncOn = () => !!(pref('syncToken', '') && pref('syncPass', ''));
 function syncFail(msg, kind){ const e = new Error(msg); e.kind = kind || 'other'; return e; }
 
@@ -1492,7 +1517,7 @@ function giveIds(){
 function localData(){
  const days = {};
  allDays().forEach(s => { const d = load(s); if(d.length) days[s] = d; });
- return { app: 'tracker', sync: 1, profile: getProfile(), profileAt: +pref('profileAt', '0') || 0, weights: getWeights(), learned: getJSON('learned', {}), deleted: getJSON('deleted', {}), days: days };
+ return { app: 'tracker', sync: 1, profile: getProfile(), profileAt: +pref('profileAt', '0') || 0, weights: getWeights(), learned: getJSON('learned', {}), deleted: getJSON('deleted', {}), inbox: getJSON('inboxSeen', {}), days: days };
 }
 // Combines two copies. For the same entry the newer edit wins, and deletions win over older edits.
 function mergeData(a, b){
@@ -1518,14 +1543,14 @@ function mergeData(a, b){
  const weights = Object.keys(w).sort().map(s => w[s]).filter(x => !(del['w:' + x.date] && del['w:' + x.date] >= (x.t || 0)));
  const useB = !a.profile || (b.profile && (b.profileAt || 0) > (a.profileAt || 0));
  return { app: 'tracker', sync: 1, profile: (useB ? b.profile : a.profile) || null, profileAt: useB ? b.profileAt || 0 : a.profileAt || 0,
-  weights: weights, learned: Object.assign({}, b.learned || {}, a.learned || {}), deleted: del, days: days };
+  weights: weights, learned: Object.assign({}, b.learned || {}, a.learned || {}), deleted: del, inbox: Object.assign({}, b.inbox || {}, a.inbox || {}), days: days };
 }
 // The same data always gives the same text, so the app can tell whether anything changed
 function canon(x){
  const sorted = o => { const r = {}; Object.keys(o || {}).sort().forEach(k => { r[k] = o[k]; }); return r; };
  const days = {};
  Object.keys(x.days || {}).sort().forEach(s => { days[s] = x.days[s].slice().sort((p, q) => p.id < q.id ? -1 : p.id > q.id ? 1 : 0); });
- return JSON.stringify([x.profile || null, x.profileAt || 0, (x.weights || []).slice().sort((p, q) => p.date < q.date ? -1 : 1), sorted(x.learned), sorted(x.deleted), days]);
+ return JSON.stringify([x.profile || null, x.profileAt || 0, (x.weights || []).slice().sort((p, q) => p.date < q.date ? -1 : 1), sorted(x.learned), sorted(x.deleted), sorted(x.inbox), days]);
 }
 function applyLocal(m){
  allDays().forEach(s => { if(!m.days[s]) localStorage.removeItem(keyFor(s)); });
@@ -1533,6 +1558,7 @@ function applyLocal(m){
  setJSON('weights', m.weights);
  setJSON('learned', m.learned);
  setJSON('deleted', m.deleted);
+ setJSON('inboxSeen', m.inbox || {});
  if(m.profile){
   const p = Object.assign({}, m.profile);
   if(m.weights.length) p.weight = m.weights[m.weights.length - 1].kg;
@@ -1607,6 +1633,44 @@ async function findGist(){
  return null;
 }
 
+// Readings the Xiaomi scale shortcut left in the inbox. Each line is like: W 2026-11-14T08:01:22+03:00 112.4 kg
+function readInbox(text){
+ const seen = getJSON('inboxSeen', {}), byDay = {}, cutoff = shift(todayStr(), -60);
+ let n = 0;
+ String(text || '').split(/[\r\n]+/).forEach(line => {
+  const kind = (/^\s*([WF])\b/i.exec(line) || [])[1], at = /([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[T ]([0-9:.]+)(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?/.exec(line);
+  if(!kind || !at || at[1] > todayStr() || at[1] < cutoff) return;
+  let v = cellNum(line.slice(at.index + at[0].length).replace(/^[^0-9]*/, ''));
+  if(!(v > 0)) return;
+  const K = kind.toUpperCase(), key = at[1] + '|' + K + '|' + v + '|' + (at[2] || '');
+  if(seen[key]) return;
+  seen[key] = 1;
+  if(K === 'W' && /\b(lb|lbs|pound)/i.test(line)) v = v * 0.45359237;
+  if(K === 'F' && v <= 1) v = v * 100;
+  if(K === 'W' ? v < 20 || v > 400 : v < 2 || v > 75) return;
+  const d = byDay[at[1]] || (byDay[at[1]] = {}), time = at[2] || '';
+  if(K === 'W' && (!d.wt || time >= d.wt)){ d.kg = Math.round(v * 100) / 100; d.wt = time; }
+  if(K === 'F' && (!d.ft || time >= d.ft)){ d.fat = Math.round(v * 10) / 10; d.ft = time; }
+ });
+ Object.keys(seen).forEach(k => { if(k.slice(0, 10) < cutoff) delete seen[k]; });
+ setJSON('inboxSeen', seen);
+ Object.keys(byDay).sort().forEach(s => {
+  const d = byDay[s], old = getWeights().find(x => x.date === s), kg = d.kg || (old && num(old.kg));
+  if(!kg) return;
+  setWeight(s, kg, d.fat || undefined);
+  const w = getWeights(), e = w.find(x => x.date === s);
+  e.scale = true; setJSON('weights', w);
+  n++;
+ });
+ return n;
+}
+async function copyGist(){
+ const code = pref('syncGist', '');
+ if(!code) throw new Error('Sync once first, then the code appears here.');
+ try { await navigator.clipboard.writeText(code); alert('Copied.'); }
+ catch(e) { $('syGist').select(); alert('Select the code and copy it.'); }
+}
+
 // --- Running a sync ---
 let syncing = null, syncAgain = false, syncTimer = null, syncBusy = false;
 async function doSync(){
@@ -1614,13 +1678,20 @@ async function doSync(){
  const g = await findGist();
  const text = g ? await gistText(g) : null;
  const remote = text ? await unseal(text, pass) : null;
+ const inbox = g && g.files && g.files[INBOX_FILE];
+ if(inbox){
+  const got = readInbox(inbox.truncated ? await (await fetch(inbox.raw_url, { cache: 'no-store' })).text() : inbox.content);
+  if(got) render();
+ }
  // Merge with what is on the phone right now, so nothing logged during the sync is lost
  const merged = mergeData(localData(), remote ? remote.data : {});
  if(canon(merged) !== canon(localData())){ applyLocal(merged); render(); }
- if(!remote || canon(merged) !== canon(remote.data)){
+ if(!remote || inbox || canon(merged) !== canon(remote.data)){
   const content = await seal(merged, pass, remote && remote.salt);
   const files = {};
   files[SYNC_FILE] = { content: content };
+  // The inbox is plain text, so it is removed as soon as its readings are in the locked copy
+  if(inbox) files[INBOX_FILE] = null;
   if(g && g.id) await gh('/gists/' + g.id, 'PATCH', { files: files });
   else {
    const made = await gh('/gists', 'POST', { description: 'Tracker app sync (encrypted)', public: false, files: files });
@@ -1682,6 +1753,7 @@ function renderSync(){
  $('syStatus').style.color = on && err && !syncBusy ? 'var(--bad)' : '';
  $('syncNote').textContent = on && err ? 'Sync problem: ' + err : '';
  show('syncNote', !!(on && err));
+ $('syGist').value = pref('syncGist', '');
 }
 
 // ---------- Settings ----------
