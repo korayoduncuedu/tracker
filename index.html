@@ -283,18 +283,28 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
   <div class='muted'>GitHub token (only the gist box ticked)</div>
   <input id='syTok' type='password' autocomplete='off'>
   <div class='muted' style='margin-top:8px'>Sync passphrase</div>
-  <input id='syPass' type='text' autocomplete='off' autocapitalize='off' spellcheck='false'>
+  <input id='syPass' type='text' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'>
   <button onclick='run(enableSync)'>Turn on sync</button>
+  <div id='syReset' style='display:none;margin-top:10px'>
+   <div class='muted' style='color:var(--bad)'>The synced copy on GitHub was locked with a different passphrase. If you don't remember it, you can start the synced copy over from this phone's data, locked with the passphrase above.</div>
+   <button class='sec' onclick='run(resetSync)'>Start the synced copy over</button>
+  </div>
   <div class='muted'>Use the same token and passphrase on each of your devices. Your data is locked with the passphrase before it leaves this phone. If you forget it, the synced copy cannot be opened.</div>
  </div>
  <div id='syOnBox'>
   <div class='muted' id='syStatus'></div>
   <button class='sec' onclick='run(syncByHand)'>Sync now</button>
   <details class='inner'>
-   <summary>Xiaomi scale shortcut</summary>
+   <summary>iPhone Health shortcut (scale and walking)</summary>
    <div class='muted'>The shortcut needs this sync code and your GitHub token. The steps are in the build guide.</div>
    <input id='syGist' readonly onclick='this.select()'>
    <button class='sec' onclick='run(copyGist)'>Copy sync code</button>
+  </details>
+  <details class='inner'>
+   <summary>Change GitHub token</summary>
+   <input id='syNewTok' type='password' autocomplete='off' placeholder='Paste the new token'>
+   <button class='sec' onclick='run(changeToken)'>Save new token</button>
+   <div class='muted'>Remember to put the new token in the scale shortcut too.</div>
   </details>
   <button class='sec' onclick='disableSync()'>Turn off sync on this phone</button>
  </div>
@@ -367,7 +377,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div id='status' class='toast' style='display:none'>Working...</div>
 
 <script>
-const VERSION = 'v12';
+const VERSION = 'v14';
 const API = 'https://api.anthropic.com/v1/messages';
 const NL = String.fromCharCode(10);
 const $ = id => document.getElementById(id);
@@ -786,6 +796,7 @@ function saveEdit(){
   }
  }
  x.t = Date.now();
+ x.edited = true;
  closeEdit();
  save(d);
 }
@@ -1589,10 +1600,18 @@ async function unseal(text, pass){
  let s = null;
  try { s = JSON.parse(text); } catch(e) {}
  if(!s || s.app !== 'tracker-sync' || !s.salt || !s.iv || !s.data) throw syncFail('The synced copy on GitHub is damaged.');
- let plain;
- try { plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(s.iv) }, await passKey(pass, s.salt), fromB64(s.data)); }
- catch(e){ throw syncFail('That passphrase does not match the one used on your other device.', 'pass'); }
- return { data: JSON.parse(new TextDecoder().decode(plain)), salt: s.salt };
+ // The iPhone keyboard can add a space or a capital letter without you noticing, so those are tried too
+ const flip = p => p ? (p[0] === p[0].toUpperCase() ? p[0].toLowerCase() : p[0].toUpperCase()) + p.slice(1) : p;
+ const tries = [];
+ [pass, pass.trim(), pass.trim() + ' '].forEach(p => { [p, flip(p)].forEach(q => { if(q && tries.indexOf(q) < 0) tries.push(q); }); });
+ for(const p of tries){
+  try {
+   const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: fromB64(s.iv) }, await passKey(p, s.salt), fromB64(s.data));
+   if(p !== pass) setPref('syncPass', p);
+   return { data: JSON.parse(new TextDecoder().decode(plain)), salt: s.salt };
+  } catch(e) {}
+ }
+ throw syncFail('That passphrase does not match the one the synced copy was locked with.', 'pass');
 }
 
 // --- GitHub ---
@@ -1633,16 +1652,26 @@ async function findGist(){
  return null;
 }
 
-// Readings the Xiaomi scale shortcut left in the inbox. Each line is like: W 2026-11-14T08:01:22+03:00 112.4 kg
+// Readings the shortcut left in the inbox. Each line is like: W 2026-11-14T08:01:22+03:00 112.4 kg
+// W weight, F body fat, D walking + running distance for a day, S steps for a day
 function readInbox(text){
- const seen = getJSON('inboxSeen', {}), byDay = {}, cutoff = shift(todayStr(), -60);
+ const seen = getJSON('inboxSeen', {}), byDay = {}, moves = {}, cutoff = shift(todayStr(), -60);
  let n = 0;
  String(text || '').split(/[\r\n]+/).forEach(line => {
-  const kind = (/^\s*([WF])\b/i.exec(line) || [])[1], at = /([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[T ]([0-9:.]+)(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?/.exec(line);
+  const kind = (/^\s*([WFDS])\b/i.exec(line) || [])[1], at = /([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[T ]([0-9:.]+)(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?/.exec(line);
   if(!kind || !at || at[1] > todayStr() || at[1] < cutoff) return;
   let v = cellNum(line.slice(at.index + at[0].length).replace(/^[^0-9]*/, ''));
+  if(!(v >= 0)) return;
+  const K = kind.toUpperCase();
+  // Distance and steps are day totals that grow during the day, so the newest number simply replaces the last one
+  if(K === 'D' || K === 'S'){
+   const m = moves[at[1]] || (moves[at[1]] = {});
+   if(K === 'S') m.steps = Math.round(v);
+   else m.km = /\bmi\b|mile/i.test(line) ? v * 1.609344 : /\bm\b/.test(line) && !/\bkm\b/i.test(line) ? v / 1000 : v;
+   return;
+  }
   if(!(v > 0)) return;
-  const K = kind.toUpperCase(), key = at[1] + '|' + K + '|' + v + '|' + (at[2] || '');
+  const key = at[1] + '|' + K + '|' + v + '|' + (at[2] || '');
   if(seen[key]) return;
   seen[key] = 1;
   if(K === 'W' && /\b(lb|lbs|pound)/i.test(line)) v = v * 0.45359237;
@@ -1662,7 +1691,26 @@ function readInbox(text){
   e.scale = true; setJSON('weights', w);
   n++;
  });
+ const p = getProfile();
+ Object.keys(moves).sort().forEach(s => { if(healthWalk(s, moves[s], p)) n++; });
  return n;
+}
+// One "Walking (iPhone)" entry per day, holding the walking the phone counted that you did not log yourself
+function healthWalk(s, m, p){
+ const id = 'health-walk-' + s, d = load(s), i = d.findIndex(x => x.id === id), cur = d[i];
+ if(getJSON('deleted', {})[id] || (cur && cur.edited)) return false;
+ let km = m.km != null ? m.km : m.steps ? m.steps * (p ? num(p.height) || 175 : 175) * 0.415 / 100000 : 0;
+ const logged = d.filter(x => x.type === 'activity' && x.id !== id && /walk|run|y[üu]r[üu]|ko[şs]/i.test(activityOf(x).act)).reduce((a, x) => a + activityOf(x).km, 0);
+ km = Math.round(Math.max(0, km - logged) * 100) / 100;
+ if(!cur && km < 0.05) return false;
+ if(cur && cur.km === km && num(cur.steps) === num(m.steps)) return false;
+ const min = Math.round(km / 4.8 * 60);
+ const e = { id: id, t: Date.now(), type: 'activity', act: 'Walking', auto: true, min: min, km: km, steps: num(m.steps),
+  label: 'Walking (iPhone), ' + fmt(km) + ' km' + (m.steps ? ', ' + m.steps + ' steps' : '') + (logged ? ', on top of your logged walks' : ''),
+  kcal: burnAboveRest(3.5, p, min, s) };
+ if(cur) d[i] = e; else d.push(e);
+ setJSON(keyFor(s), d);
+ return true;
 }
 async function copyGist(){
  const code = pref('syncGist', '');
@@ -1672,12 +1720,15 @@ async function copyGist(){
 }
 
 // --- Running a sync ---
-let syncing = null, syncAgain = false, syncTimer = null, syncBusy = false;
+let syncing = null, syncAgain = false, syncTimer = null, syncBusy = false, syncForce = false;
 async function doSync(){
  const pass = pref('syncPass', '');
  const g = await findGist();
+
  const text = g ? await gistText(g) : null;
- const remote = text ? await unseal(text, pass) : null;
+ let remote = null;
+ try { remote = text ? await unseal(text, pass) : null; }
+ catch(e){ if(!(e.kind === 'pass' && syncForce)) throw e; }
  const inbox = g && g.files && g.files[INBOX_FILE];
  if(inbox){
   const got = readInbox(inbox.truncated ? await (await fetch(inbox.raw_url, { cache: 'no-store' })).text() : inbox.content);
@@ -1720,16 +1771,36 @@ function autoSync(){
 }
 function scheduleSync(){ if(!syncOn()) return; clearTimeout(syncTimer); syncTimer = setTimeout(autoSync, 3000); }
 
-async function enableSync(){
- const tok = $('syTok').value.trim(), pass = $('syPass').value;
+async function enableSync(force){
+ const tok = $('syTok').value.trim(), pass = $('syPass').value.trim();
  if(!tok) throw new Error('Paste your GitHub token');
  if(pass.length < 6) throw new Error('Choose a passphrase of at least 6 characters');
  setPref('syncToken', tok); setPref('syncPass', pass); setPref('syncGist', ''); setPref('syncErr', '');
+ syncForce = force === true;
  try { await syncNow(); }
- catch(e){ ['syncToken', 'syncPass', 'syncGist'].forEach(k => localStorage.removeItem(k)); renderSync(); throw e; }
- $('syTok').value = ''; $('syPass').value = '';
+ catch(e){
+  ['syncToken', 'syncPass', 'syncGist'].forEach(k => localStorage.removeItem(k));
+  show('syReset', e.kind === 'pass');
+  renderSync(); throw e;
+ }
+ finally { syncForce = false; }
+ $('syTok').value = ''; $('syPass').value = ''; show('syReset', false);
  renderSync();
- alert('Sync is on. Use the same token and passphrase on your other devices.');
+ alert(force === true ? 'Done. The synced copy now holds this phone\'s data, locked with your new passphrase. Use this passphrase on your other devices.' : 'Sync is on. Use the same token and passphrase on your other devices.');
+}
+// Replaces the synced copy with this phone's data. The sync code stays the same, so the scale shortcut keeps working.
+function resetSync(){
+ if(!confirm('Start the synced copy over? What is on GitHub now is replaced with this phone\'s data. Nothing on this phone is deleted. Your other devices will need the new passphrase.')) return;
+ return enableSync(true);
+}
+async function changeToken(){
+ const tok = $('syNewTok').value.trim(), old = pref('syncToken', '');
+ if(!tok) throw new Error('Paste the new token');
+ setPref('syncToken', tok);
+ try { await syncNow(); }
+ catch(e){ setPref('syncToken', old); renderSync(); throw e; }
+ $('syNewTok').value = '';
+ alert('New token saved.');
 }
 function disableSync(){
  if(!confirm('Turn off sync on this phone? Your data stays here and on GitHub.')) return;
