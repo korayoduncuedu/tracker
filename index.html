@@ -377,7 +377,7 @@ try { const th = localStorage.getItem('theme'); if(th === 'light' || th === 'dar
 <div id='status' class='toast' style='display:none'>Working...</div>
 
 <script>
-const VERSION = 'v14';
+const VERSION = 'v16';
 const API = 'https://api.anthropic.com/v1/messages';
 const NL = String.fromCharCode(10);
 const $ = id => document.getElementById(id);
@@ -1658,7 +1658,7 @@ function readInbox(text){
  const seen = getJSON('inboxSeen', {}), byDay = {}, moves = {}, cutoff = shift(todayStr(), -60);
  let n = 0;
  String(text || '').split(/[\r\n]+/).forEach(line => {
-  const kind = (/^\s*([WFDS])\b/i.exec(line) || [])[1], at = /([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[T ]([0-9:.]+)(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?/.exec(line);
+  const kind = (/^\s*([WFDS])(?![a-z])/i.exec(line) || [])[1], at = /([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[T ]([0-9:.]+)(?:Z|[+-][0-9]{2}:?[0-9]{2})?)?/.exec(line);
   if(!kind || !at || at[1] > todayStr() || at[1] < cutoff) return;
   let v = cellNum(line.slice(at.index + at[0].length).replace(/^[^0-9]*/, ''));
   if(!(v >= 0)) return;
@@ -1697,6 +1697,7 @@ function readInbox(text){
 }
 // One "Walking (iPhone)" entry per day, holding the walking the phone counted that you did not log yourself
 function healthWalk(s, m, p){
+ if(!p || !num(p.weight)) return false;
  const id = 'health-walk-' + s, d = load(s), i = d.findIndex(x => x.id === id), cur = d[i];
  if(getJSON('deleted', {})[id] || (cur && cur.edited)) return false;
  let km = m.km != null ? m.km : m.steps ? m.steps * (p ? num(p.height) || 175 : 175) * 0.415 / 100000 : 0;
@@ -1711,6 +1712,23 @@ function healthWalk(s, m, p){
  if(cur) d[i] = e; else d.push(e);
  setJSON(keyFor(s), d);
  return true;
+}
+// iPhone walks saved without calories (before the profile was on this device) get them worked out now
+function fixBurns(){
+ const p = getProfile();
+ if(!p || !num(p.weight)) return 0;
+ let n = 0;
+ allDays().forEach(s => {
+  const d = load(s);
+  let changed = false;
+  d.forEach(x => {
+   if(x.type === 'activity' && x.auto && !x.edited && !(num(x.kcal) > 0) && num(x.min) > 0){
+    x.kcal = burnAboveRest(3.5, p, num(x.min), s); x.t = Date.now(); changed = true; n++;
+   }
+  });
+  if(changed) setJSON(keyFor(s), d);
+ });
+ return n;
 }
 async function copyGist(){
  const code = pref('syncGist', '');
@@ -1729,13 +1747,17 @@ async function doSync(){
  let remote = null;
  try { remote = text ? await unseal(text, pass) : null; }
  catch(e){ if(!(e.kind === 'pass' && syncForce)) throw e; }
+ // Take in the synced copy first, so the profile is here before the inbox and burn numbers are worked out
+ let merged = mergeData(localData(), remote ? remote.data : {});
+ if(canon(merged) !== canon(localData())){ applyLocal(merged); render(); }
  const inbox = g && g.files && g.files[INBOX_FILE];
  if(inbox){
   const got = readInbox(inbox.truncated ? await (await fetch(inbox.raw_url, { cache: 'no-store' })).text() : inbox.content);
   if(got) render();
  }
- // Merge with what is on the phone right now, so nothing logged during the sync is lost
- const merged = mergeData(localData(), remote ? remote.data : {});
+ if(fixBurns()) render();
+ // Merge again with what is on the phone right now, so nothing logged during the sync is lost
+ merged = mergeData(localData(), remote ? remote.data : {});
  if(canon(merged) !== canon(localData())){ applyLocal(merged); render(); }
  if(!remote || inbox || canon(merged) !== canon(remote.data)){
   const content = await seal(merged, pass, remote && remote.salt);
@@ -1910,6 +1932,7 @@ function render(){
  if(curTab === 'graphs') renderGraphs();
 }
 giveIds();
+if(fixBurns()) scheduleSync();
 closeEdit();
 render();
 showTab(getProfile() && getKey() ? 'log' : 'settings');
